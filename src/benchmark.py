@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
 Turn the tidy income-statement CSV (from normalize_output.py) into
-industry benchmark stats: for each line item, express it as a % of
-Total Revenue per company/year, then summarize those margins by
-Industry and Year (mean, median, p25, p75, count).
+industry benchmark stats: for each dollar line item, express it as a %
+of Total Revenue per company/year; for line items that are already a
+ratio/multiple (see RATIO_LINE_ITEMS), use the value as-is instead of
+dividing by revenue. Then summarize by Industry and Year (mean, median,
+p25, p75, count).
 
 Usage:
     python src/benchmark.py \
@@ -17,6 +19,11 @@ import pandas as pd
 
 REVENUE_LABEL = "Total Revenue"
 
+# Line items that are already a ratio/multiple, not a dollar amount --
+# these should NOT be divided by revenue. Add to this set as needed
+# when adding non-dollar line items to config/mnemonics.csv.
+RATIO_LINE_ITEMS = {"EV / EBITDA"}
+
 
 def compute_margins(tidy: pd.DataFrame) -> pd.DataFrame:
     tidy = tidy.copy()
@@ -29,7 +36,9 @@ def compute_margins(tidy: pd.DataFrame) -> pd.DataFrame:
     )
 
     merged = tidy.merge(revenue, on=["CompanyName", "Year"], how="left")
+    is_ratio = merged["LineItem"].isin(RATIO_LINE_ITEMS)
     merged["Margin"] = merged["Value"] / merged["Revenue"]
+    merged.loc[is_ratio, "Margin"] = merged.loc[is_ratio, "Value"]
     return merged
 
 

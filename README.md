@@ -9,15 +9,16 @@ by industry.
 This environment has no Capital IQ login and no network access to S&P's
 platform, and scripting/scraping the Capital IQ Pro website directly is
 against S&P's terms of use. The supported way to bulk-extract data with a
-standard Capital IQ subscription is the Excel Add-in's `=CIQ(...)`
+standard Capital IQ subscription is the Excel Add-in's `=SGP(...)`
 formulas, so the pipeline is split into a step that runs here (generating
 formulas) and a step that has to run on your machine, in Excel, logged
 into Capital IQ (actually pulling the data):
 
 1. **`src/generate_template.py`** (runs anywhere) — takes your company
    list and a set of income-statement line items, and writes an `.xlsx`
-   full of `=CIQ(Identifier, Mnemonic, "IQ_FY", offset)` formulas. No
-   data yet — just formulas.
+   full of `=SGP(Identifier, Mnemonic, "FY<year>")` formulas, one column
+   per explicit fiscal year (e.g. `=SGP($B2,$E2,"FY2025")`). No data yet
+   — just formulas.
 2. **You, in Excel** — open the workbook with the Capital IQ Add-in
    installed and logged in, fix up any company identifiers, and hit
    Refresh Data. The formulas resolve to real numbers. Save the file.
@@ -39,7 +40,7 @@ pip install -r requirements.txt
 #    template will use the name as a placeholder you can fix in Excel
 #    using the CapIQ ribbon's company search.
 
-python src/generate_template.py --companies companies.csv --years 5
+python src/generate_template.py --companies companies.csv --start-year 2020
 
 # 2. Open output/CapIQ_Income_Statement_Template.xlsx in Excel,
 #    fix identifiers if needed, Refresh Data via the CapIQ Add-in,
@@ -66,10 +67,11 @@ generated formulas' structure, since the mnemonic is a cell reference.
 
 ## Notes / limitations
 
-- `"IQ_FY"` / `"IQ_FY-1"` etc. pull each company's own most recent
-  reported fiscal year and prior years relative to it. Companies with
-  different fiscal year-ends will line up as "FY, FY-1, FY-2..." but
-  those columns won't all be the same calendar year across companies.
+- Each Income Statement column is an explicit fiscal year (`FY2020`,
+  `FY2021`, ...) from `--start-year` through `--end-year` (default: the
+  current calendar year). A company that hasn't reported a given year
+  yet will simply come back blank/`#N/A` for that column — expected, not
+  a bug to chase.
 - This does not automate the Excel refresh step itself — CapIQ's terms
   require a logged-in, licensed user driving the Add-in, so step 2 stays
   manual (or could be scripted locally with `xlwings`/VBA on a machine

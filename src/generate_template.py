@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Generate an Excel workbook wired up with S&P Capital IQ Excel Plug-in
-formulas (=CIQ(...)) for a list of companies and income-statement line
+formulas (=SGP(...)) for a list of companies and income-statement line
 items.
 
 This script does NOT talk to Capital IQ itself -- it has no login and
@@ -16,10 +16,11 @@ Usage:
         --companies companies.csv \
         --mnemonics config/mnemonics.csv \
         --start-year 2020 \
+        --end-year 2026 \
         --out output/CapIQ_Income_Statement_Template.xlsx
 
 companies.csv columns: CompanyName, Identifier, Industry
-    - Identifier should be whatever the CIQ() formula can resolve:
+    - Identifier should be whatever the SGP() formula can resolve:
       a ticker (e.g. "MSFT"), CUSIP, ISIN, SEDOL, or a Capital IQ
       Company ID (e.g. "IQ123456"). Plain free-text company names are
       NOT reliably resolved by the formula engine -- use the CapIQ
@@ -29,12 +30,18 @@ companies.csv columns: CompanyName, Identifier, Industry
       see the formulas and fix identifiers directly in Excel.
 
 config/mnemonics.csv columns: Label, Mnemonic
-    - CIQ mnemonics for the line items you want. The defaults shipped
-      here (IQ_TOTAL_REV, IQ_COGS, IQ_GP, IQ_SGA, IQ_EBITDA, ...) are
-      the standard Capital IQ income-statement mnemonics, but exact
+    - CIQ variable/mnemonic codes for the line items you want (the
+      second argument to SGP()). The defaults shipped here
+      (IQ_TOTAL_REV, IQ_COGS, IQ_GP, IQ_SGA, IQ_EBITDA, ...) are the
+      standard Capital IQ income-statement mnemonics, but exact
       availability/naming can vary by subscription and template
       version -- verify against your own Formula Builder in the CapIQ
       ribbon and edit this file if any come back as #N/A.
+
+Year range: every fiscal year from --start-year to --end-year gets its
+own column, passed to SGP() as an explicit "FY<year>" string (e.g.
+"FY2025") -- not a relative offset. Years a company hasn't reported yet
+will simply come back blank/#N/A after refresh, which is expected.
 """
 import argparse
 import csv
@@ -55,7 +62,7 @@ def read_csv_rows(path):
         return list(csv.DictReader(f))
 
 
-def build_workbook(companies, mnemonics, years):
+def build_workbook(companies, mnemonics, fiscal_years):
     wb = Workbook()
 
     # --- Config sheet: mnemonics, editable without touching formulas ---
@@ -87,8 +94,7 @@ def build_workbook(companies, mnemonics, years):
 
     # --- Income Statement sheet: one row per (company, line item) ---
     sheet = wb.create_sheet("Income Statement")
-    year_tokens = ["IQ_FY"] + [f"IQ_FY-{i}" for i in range(1, years)]
-    year_labels = ["FY (latest)"] + [f"FY-{i}" for i in range(1, years)]
+    year_labels = [f"FY{y}" for y in fiscal_years]
 
     header = ["Company", "Identifier", "Industry", "Line Item", "Mnemonic"] + year_labels
     sheet.append(header)
@@ -112,9 +118,9 @@ def build_workbook(companies, mnemonics, years):
             sheet.cell(row=r, column=5, value=mrow["Mnemonic"])
             id_cell = f"$B{r}"
             mnem_cell = f"$E{r}"
-            for yi, token in enumerate(year_tokens):
+            for yi, year_label in enumerate(year_labels):
                 col = 6 + yi  # column F onward
-                formula = f'=CIQ({id_cell},{mnem_cell},"IQ_FY",{-yi if yi else 0})'
+                formula = f'=SGP({id_cell},{mnem_cell},"{year_label}")'
                 sheet.cell(row=r, column=col, value=formula)
         if li == n_items - 1:
             # bold the company name's first row of each block for readability
@@ -123,8 +129,8 @@ def build_workbook(companies, mnemonics, years):
     widths = {"A": 28, "B": 14, "C": 20, "D": 24, "E": 18}
     for col, width in widths.items():
         sheet.column_dimensions[col].width = width
-    for yi in range(len(year_tokens)):
-        sheet.column_dimensions[get_column_letter(6 + yi)].width = 14
+    for yi in range(len(year_labels)):
+        sheet.column_dimensions[get_column_letter(6 + yi)].width = 12
 
     # --- Notes sheet ---
     notes = wb.create_sheet("Notes")
@@ -136,8 +142,8 @@ def build_workbook(companies, mnemonics, years):
         " ribbon's company search to resolve a plain company name to a valid"
         " identifier if you're not sure.",
         "2. Open the 'Income Statement' sheet. Cells are formulas of the form"
-        ' =CIQ(Identifier, Mnemonic, "IQ_FY", offset). They will show #N/A or'
-        " blank until refreshed.",
+        ' =SGP(Identifier, Mnemonic, "FY<year>"), e.g. =SGP($B2,$E2,"FY2025").'
+        " They will show #N/A or blank until refreshed.",
         "3. With the Capital IQ Excel Add-in installed and you logged in, use"
         " the CapIQ ribbon's Refresh / Refresh All Data command (or Ctrl+Alt+F9,"
         " depending on your Add-in version) to pull live data into the sheet.",
@@ -149,10 +155,10 @@ def build_workbook(companies, mnemonics, years):
         " src/normalize_output.py against it to produce a tidy CSV for"
         " benchmarking.",
         "",
-        "Note on fiscal years: 'IQ_FY' / 'IQ_FY-1' etc. pull each company's own"
-        " most recent reported fiscal year and prior years relative to it --"
-        " companies with different fiscal year-ends will therefore have"
-        " differently-dated columns even though they're aligned as 'FY', 'FY-1', ...",
+        "Note on fiscal years: each column is an explicit calendar fiscal year"
+        " (FY2020, FY2021, ...), not relative to 'today'. A company that hasn't"
+        " reported a given year yet will simply come back blank/#N/A for that"
+        " column -- that's expected, not an error to fix.",
     ]
     for i, line in enumerate(notes_text, start=1):
         notes.cell(row=i, column=1, value=line)
@@ -166,12 +172,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--companies", default="companies.csv")
     ap.add_argument("--mnemonics", default="config/mnemonics.csv")
-    ap.add_argument("--years", type=int, default=5, help="number of fiscal years back to pull (default 5)")
-    ap.add_argument("--start-year", type=int, default=None,
-                     help="pull every fiscal year from this calendar year through the latest available, "
-                          "instead of a fixed --years count back. Adds a 1-year buffer so the earliest "
-                          "requested year is still included even if a company's most recent reported "
-                          "fiscal year lags the current calendar year.")
+    ap.add_argument("--start-year", type=int, default=2020, help="first fiscal year to pull (default 2020)")
+    ap.add_argument("--end-year", type=int, default=None,
+                     help="last fiscal year to pull (default: current calendar year)")
     ap.add_argument("--out", default="output/CapIQ_Income_Statement_Template.xlsx")
     args = ap.parse_args()
 
@@ -182,17 +185,18 @@ def main():
     if not mnemonics:
         raise SystemExit(f"No mnemonics found in {args.mnemonics}")
 
-    years = args.years
-    if args.start_year is not None:
-        current_year = date.today().year
-        years = max(1, current_year - args.start_year + 2)  # +2: this year plus a lag buffer
+    end_year = args.end_year if args.end_year is not None else date.today().year
+    if end_year < args.start_year:
+        raise SystemExit(f"--end-year ({end_year}) is before --start-year ({args.start_year})")
+    fiscal_years = list(range(args.start_year, end_year + 1))
 
-    wb = build_workbook(companies, mnemonics, years)
+    wb = build_workbook(companies, mnemonics, fiscal_years)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
-    print(f"Wrote {out_path} ({len(companies)} companies x {len(mnemonics)} line items x {years} years)")
+    print(f"Wrote {out_path} ({len(companies)} companies x {len(mnemonics)} line items x {len(fiscal_years)} years: "
+          f"FY{fiscal_years[0]}-FY{fiscal_years[-1]})")
 
 
 if __name__ == "__main__":

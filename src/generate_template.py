@@ -15,7 +15,7 @@ Usage:
     python src/generate_template.py \
         --companies companies.csv \
         --mnemonics config/mnemonics.csv \
-        --years 5 \
+        --start-year 2020 \
         --out output/CapIQ_Income_Statement_Template.xlsx
 
 companies.csv columns: CompanyName, Identifier, Industry
@@ -38,6 +38,7 @@ config/mnemonics.csv columns: Label, Mnemonic
 """
 import argparse
 import csv
+from datetime import date
 from pathlib import Path
 
 from openpyxl import Workbook
@@ -166,6 +167,11 @@ def main():
     ap.add_argument("--companies", default="companies.csv")
     ap.add_argument("--mnemonics", default="config/mnemonics.csv")
     ap.add_argument("--years", type=int, default=5, help="number of fiscal years back to pull (default 5)")
+    ap.add_argument("--start-year", type=int, default=None,
+                     help="pull every fiscal year from this calendar year through the latest available, "
+                          "instead of a fixed --years count back. Adds a 1-year buffer so the earliest "
+                          "requested year is still included even if a company's most recent reported "
+                          "fiscal year lags the current calendar year.")
     ap.add_argument("--out", default="output/CapIQ_Income_Statement_Template.xlsx")
     args = ap.parse_args()
 
@@ -176,12 +182,17 @@ def main():
     if not mnemonics:
         raise SystemExit(f"No mnemonics found in {args.mnemonics}")
 
-    wb = build_workbook(companies, mnemonics, args.years)
+    years = args.years
+    if args.start_year is not None:
+        current_year = date.today().year
+        years = max(1, current_year - args.start_year + 2)  # +2: this year plus a lag buffer
+
+    wb = build_workbook(companies, mnemonics, years)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
-    print(f"Wrote {out_path} ({len(companies)} companies x {len(mnemonics)} line items x {args.years} years)")
+    print(f"Wrote {out_path} ({len(companies)} companies x {len(mnemonics)} line items x {years} years)")
 
 
 if __name__ == "__main__":

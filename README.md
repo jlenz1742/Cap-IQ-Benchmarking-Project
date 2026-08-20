@@ -77,6 +77,11 @@ generated formulas' structure, since the mnemonic is a cell reference.
   forward by a year). A company that hasn't reported a given year yet
   will simply come back blank/`#N/A` for that column — expected, not a
   bug to chase.
+- One extra column is appended after the full years for the current
+  year's H1 (first half), using Capital IQ's own interim-period token
+  (`FH12026`) -- but only once that half has actually closed (from July
+  onward). Use `--no-h1` to skip it, or `--h1-year YYYY` to force a
+  specific year.
 - Formulas reference the year from their column's row-1 header cell
   (e.g. `F$1` holding `"FY2019"`) instead of a literal string, so you
   can retype a header cell in Excel to repoint a whole column without

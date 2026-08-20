@@ -39,15 +39,23 @@ config/mnemonics.csv columns: Label, Mnemonic
       ribbon and edit this file if any come back as #N/A.
 
 Year range: every fiscal year from --start-year to --end-year gets its
-own column. Each formula references the "FY<year>" label in that
-column's row-1 header cell (e.g. =SPG($B2,$E2,F$1)) rather than
-hard-coding the year as a literal string, so you can edit a header cell
-directly in Excel to try a different year without touching the formula.
-Defaults to --start-year 2019 and --end-year (today's year - 1), i.e.
-the most recently completed fiscal year -- so re-running this script
-next year automatically rolls the window forward without any flags.
-Years a company hasn't reported yet will simply come back blank/#N/A
-after refresh, which is expected.
+own column. Each formula references the period label in that column's
+row-1 header cell (e.g. =SPG($B2,$E2,F$1)) rather than hard-coding the
+period as a literal string, so you can edit a header cell directly in
+Excel to try a different period without touching the formula. Defaults
+to --start-year 2019 and --end-year (today's year - 1), i.e. the most
+recently completed fiscal year -- so re-running this script next year
+automatically rolls the window forward without any flags. Years a
+company hasn't reported yet will simply come back blank/#N/A after
+refresh, which is expected.
+
+H1 (first-half) column: unless --no-h1 is passed, one extra column is
+appended after the full fiscal years for the current calendar year's
+first half, using the period token "FH1<year>" (e.g. "FH12026") --
+Capital IQ's own interim-period format, confirmed against the live
+Add-in. It's only added once that half has actually closed (i.e. once
+today's month is July or later); before that there's nothing to add
+yet. Override the year with --h1-year, or turn it off with --no-h1.
 """
 import argparse
 import csv
@@ -68,7 +76,7 @@ def read_csv_rows(path):
         return list(csv.DictReader(f))
 
 
-def build_workbook(companies, mnemonics, fiscal_years):
+def build_workbook(companies, mnemonics, period_labels):
     wb = Workbook()
 
     # --- Config sheet: mnemonics, editable without touching formulas ---
@@ -100,7 +108,7 @@ def build_workbook(companies, mnemonics, fiscal_years):
 
     # --- Income Statement sheet: one row per (company, line item) ---
     sheet = wb.create_sheet("Income Statement")
-    year_labels = [f"FY{y}" for y in fiscal_years]
+    year_labels = list(period_labels)
 
     header = ["Company", "Identifier", "Industry", "Line Item", "Mnemonic"] + year_labels
     sheet.append(header)
@@ -171,9 +179,9 @@ def build_workbook(companies, mnemonics, fiscal_years):
         " yet will simply come back blank/#N/A for that column.",
         "",
         "Rolling the window forward: this workbook was generated for "
-        f"FY{fiscal_years[0]}-FY{fiscal_years[-1]}. Re-running generate_template.py"
-        " with no --start-year/--end-year flags defaults to 2019 through last"
-        " year, so it automatically adds a year each time you regenerate it.",
+        f"{year_labels[0]} through {year_labels[-1]}. Re-running generate_template.py"
+        " with no flags defaults to 2019 through last year (plus this year's H1 once"
+        " it has closed), so it automatically rolls forward each time you regenerate it.",
     ]
     for i, line in enumerate(notes_text, start=1):
         notes.cell(row=i, column=1, value=line)
@@ -189,8 +197,13 @@ def main():
     ap.add_argument("--mnemonics", default="config/mnemonics.csv")
     ap.add_argument("--start-year", type=int, default=2019, help="first fiscal year to pull (default 2019)")
     ap.add_argument("--end-year", type=int, default=None,
-                     help="last fiscal year to pull (default: current calendar year - 1, "
+                     help="last full fiscal year to pull (default: current calendar year - 1, "
                           "i.e. the most recently completed fiscal year)")
+    ap.add_argument("--no-h1", action="store_true",
+                     help="don't append the current year's H1 (first-half) column")
+    ap.add_argument("--h1-year", type=int, default=None,
+                     help="calendar year for the H1 column (default: current year, but only "
+                          "once that half has closed -- see --no-h1 to disable entirely)")
     ap.add_argument("--out", default="output/CapIQ_Income_Statement_Template.xlsx")
     args = ap.parse_args()
 
@@ -201,18 +214,30 @@ def main():
     if not mnemonics:
         raise SystemExit(f"No mnemonics found in {args.mnemonics}")
 
-    end_year = args.end_year if args.end_year is not None else date.today().year - 1
+    today = date.today()
+    end_year = args.end_year if args.end_year is not None else today.year - 1
     if end_year < args.start_year:
         raise SystemExit(f"--end-year ({end_year}) is before --start-year ({args.start_year})")
     fiscal_years = list(range(args.start_year, end_year + 1))
+    period_labels = [f"FY{y}" for y in fiscal_years]
 
-    wb = build_workbook(companies, mnemonics, fiscal_years)
+    if not args.no_h1:
+        h1_label = None
+        if args.h1_year is not None:
+            h1_label = f"FH1{args.h1_year}"
+        elif today.month >= 7:
+            # H1 (Jan-Jun) has closed for the current year -- add it.
+            h1_label = f"FH1{today.year}"
+        if h1_label:
+            period_labels.append(h1_label)
+
+    wb = build_workbook(companies, mnemonics, period_labels)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
-    print(f"Wrote {out_path} ({len(companies)} companies x {len(mnemonics)} line items x {len(fiscal_years)} years: "
-          f"FY{fiscal_years[0]}-FY{fiscal_years[-1]})")
+    print(f"Wrote {out_path} ({len(companies)} companies x {len(mnemonics)} line items x {len(period_labels)} periods: "
+          f"{period_labels[0]}-{period_labels[-1]})")
 
 
 if __name__ == "__main__":

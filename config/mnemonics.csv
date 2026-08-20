@@ -1,0 +1,10 @@
+Label,Mnemonic
+Total Revenue,IQ_TOTAL_REV
+Cost of Goods Sold,IQ_COGS
+Gross Profit,IQ_GP
+SG&A Expense,IQ_SGA
+R&D Expense,IQ_RD_EXP
+Total Operating Expenses,IQ_TOTAL_OPER_EXP
+EBITDA,IQ_EBITDA
+EBIT,IQ_EBIT
+Net Income,IQ_NI

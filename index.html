@@ -706,11 +706,31 @@
   // so they can't be decoded with the .eml parser above. We lazily load a small,
   // well-tested parser library from a CDN (only when a .msg file is actually
   // uploaded) instead of reimplementing OLE/CFB parsing by hand.
+  // Picks the MsgReader constructor out of whatever shape the CDN's ESM
+  // conversion produced. jsdelivr's "+esm" wraps the library's CommonJS
+  // exports object as the module's `default` export — and that CJS exports
+  // object itself has its *own* `.default` property holding the actual
+  // class (since the original package's own default export is the class).
+  // So the real constructor usually ends up at `mod.default.default`, not
+  // `mod.default`. Try the plausible shapes in order rather than hard-coding
+  // one, so a future bundler/library change doesn't silently break this.
+  function resolveMsgReaderCtor(mod) {
+    const candidates = [
+      mod && mod.default && mod.default.default,
+      mod && mod.default,
+      mod && mod.MsgReader,
+      mod
+    ];
+    const ctor = candidates.find(c => typeof c === 'function');
+    if (!ctor) throw new Error('Could not locate the MsgReader constructor in the loaded module.');
+    return ctor;
+  }
+
   let msgReaderCtorPromise = null;
   function loadMsgReaderCtor() {
     if (!msgReaderCtorPromise) {
-      msgReaderCtorPromise = import('https://cdn.jsdelivr.net/npm/@kenjiuno/msgreader/+esm')
-        .then(mod => mod.default || mod)
+      msgReaderCtorPromise = import('https://esm.sh/@kenjiuno/msgreader@1.28.0')
+        .then(resolveMsgReaderCtor)
         .catch(err => {
           msgReaderCtorPromise = null; // allow retrying on the next upload
           throw new Error('Could not load the .msg parser library (needs an internet connection). ' + err.message);

@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mail Dictation Assistant</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --panel: #ffffff;
+    --border: #dde3ee;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --accent: #4f46e5;
+    --accent-dark: #4338ca;
+    --danger: #dc2626;
+    --ok: #16a34a;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 20px 24px;
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: white;
+  }
+  header h1 { margin: 0 0 4px; font-size: 22px; }
+  header p { margin: 0; opacity: 0.9; font-size: 14px; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .panel h2 {
+    margin: 0;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone.dragover {
+    border-color: var(--accent);
+    background: #eef2ff;
+  }
+  .dropzone small { display: block; margin-top: 6px; }
+  input[type="file"] { display: none; }
+
+  .mail-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    font-size: 13px;
+  }
+  .mail-meta .label { color: var(--muted); font-weight: 600; }
+  .mail-meta .value { word-break: break-word; }
+
+  textarea, .field-input {
+    width: 100%;
+    font-family: inherit;
+    font-size: 14px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    resize: vertical;
+    background: #fafbff;
+    color: var(--text);
+  }
+  #mailBody { min-height: 260px; background: #fbfbfd; }
+  #replyBody { min-height: 220px; }
+
+  label.field-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 2px;
+    display: block;
+  }
+  .field-group { display: flex; flex-direction: column; }
+
+  .lang-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .lang-toggle button {
+    border: none;
+    background: transparent;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--muted);
+  }
+  .lang-toggle button.active {
+    background: var(--accent);
+    color: white;
+  }
+
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  button.action {
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text);
+    padding: 9px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  button.action:hover { background: #f3f4f6; }
+  button.action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #micBtn {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  #micBtn:hover { background: var(--accent-dark); }
+  #micBtn.recording {
+    background: var(--danger);
+    border-color: var(--danger);
+    animation: pulse 1.4s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.45); }
+    70% { box-shadow: 0 0 0 10px rgba(220,38,38,0); }
+    100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+  }
+
+  .status {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+  }
+  .status.listening .dot { background: var(--danger); }
+  .status.ok .dot { background: var(--ok); }
+
+  .interim {
+    font-style: italic;
+    color: var(--muted);
+    font-size: 13px;
+    min-height: 18px;
+  }
+
+  .footer-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-top: auto;
+  }
+
+  .warning-banner {
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin: 0 20px;
+    max-width: 1260px;
+    margin-inline: auto;
+  }
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎙️ Mail Dictation Assistant</h1>
+  <p>Upload an email, then dictate your reply by voice — choose English or German.</p>
+</header>
+
+<div id="unsupportedBanner" class="warning-banner" style="display:none;">
+  ⚠️ Your browser doesn't support speech recognition (Web Speech API). Please use Google Chrome or Microsoft Edge.
+  Also note: dictation needs an internet connection and microphone access, and works best when the page is opened
+  via <code>http://</code>/<code>https://</code> (or opened directly in Chrome).
+</div>
+
+<div class="layout">
+
+  <!-- LEFT: Original mail -->
+  <div class="panel">
+    <h2>📥 Original Mail</h2>
+
+    <div id="dropzone" class="dropzone">
+      <div>Drop a <strong>.eml</strong> / <strong>.txt</strong> file here, or click to choose one</div>
+      <small>You can also just paste the mail text directly into the box below.</small>
+      <input type="file" id="fileInput" accept=".eml,.txt,text/plain,message/rfc822">
+    </div>
+
+    <div class="mail-meta">
+      <span class="label">From:</span><span class="value" id="metaFrom">—</span>
+      <span class="label">To:</span><span class="value" id="metaTo">—</span>
+      <span class="label">Subject:</span><span class="value" id="metaSubject">—</span>
+      <span class="label">Date:</span><span class="value" id="metaDate">—</span>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label" for="mailBody">Mail content</label>
+      <textarea id="mailBody" placeholder="Paste or upload the original mail here..."></textarea>
+    </div>
+
+    <div class="footer-actions">
+      <button class="action" id="clearMailBtn">🗑️ Clear</button>
+      <button class="action" id="readMailBtn">🔊 Read mail aloud</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Reply by dictation -->
+  <div class="panel">
+    <h2>✍️ Reply by Dictation</h2>
+
+    <div class="controls-row">
+      <div>
+        <label class="field-label">Dictation language</label>
+        <div class="lang-toggle" id="langToggle">
+          <button data-lang="en-US" class="active">🇬🇧 English</button>
+          <button data-lang="de-DE">🇩🇪 Deutsch</button>
+        </div>
+      </div>
+      <div>
+        <button class="action" id="micBtn">🎙️ Start Dictation</button>
+      </div>
+      <div class="status" id="status"><span class="dot"></span><span id="statusText">Idle</span></div>
+    </div>
+
+    <div class="interim" id="interim"></div>
+
+    <div class="field-group">
+      <label class="field-label" for="replyTo">To</label>
+      <input class="field-input" id="replyTo" placeholder="recipient@example.com">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="replySubject">Subject</label>
+      <input class="field-input" id="replySubject" placeholder="Re: ...">
+    </div>
+    <div class="field-group" style="flex:1;">
+      <label class="field-label" for="replyBody">Reply text (dictated text appears here — you can also edit it manually)</label>
+      <textarea id="replyBody" placeholder="Click 'Start Dictation' and speak your reply..."></textarea>
+    </div>
+    <p class="hint">Tip: switch the language toggle any time — even mid-reply — before pressing "Start Dictation" again to mix English and German passages.</p>
+
+    <div class="footer-actions">
+      <button class="action" id="clearReplyBtn">🗑️ Clear reply</button>
+      <button class="action" id="copyReplyBtn">📋 Copy text</button>
+      <button class="action" id="downloadTxtBtn">⬇️ Download .txt</button>
+      <button class="action" id="downloadEmlBtn">⬇️ Download .eml</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Original mail: upload / parse ----------
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const mailBody = document.getElementById('mailBody');
+  const metaFrom = document.getElementById('metaFrom');
+  const metaTo = document.getElementById('metaTo');
+  const metaSubject = document.getElementById('metaSubject');
+  const metaDate = document.getElementById('metaDate');
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  });
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const raw = e.target.result;
+      if (/\.eml$/i.test(file.name) || /message\/rfc822/.test(file.type)) {
+        parseEml(raw);
+      } else {
+        mailBody.value = raw;
+        clearMeta();
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function clearMeta() {
+    metaFrom.textContent = '—';
+    metaTo.textContent = '—';
+    metaSubject.textContent = '—';
+    metaDate.textContent = '—';
+  }
+
+  function parseEml(raw) {
+    // Split headers from body at first blank line.
+    const splitIdx = raw.search(/\r?\n\r?\n/);
+    const headerBlock = splitIdx !== -1 ? raw.slice(0, splitIdx) : raw;
+    const bodyBlock = splitIdx !== -1 ? raw.slice(splitIdx).replace(/^\r?\n\r?\n/, '') : '';
+
+    // Unfold header continuation lines (lines starting with whitespace belong to previous header).
+    const unfolded = headerBlock.replace(/\r?\n[ \t]+/g, ' ');
+    const lines = unfolded.split(/\r?\n/);
+    const headers = {};
+    lines.forEach((line) => {
+      const m = line.match(/^([A-Za-z-]+):\s*(.*)$/);
+      if (m) headers[m[1].toLowerCase()] = m[2].trim();
+    });
+
+    metaFrom.textContent = headers['from'] || '—';
+    metaTo.textContent = headers['to'] || '—';
+    metaSubject.textContent = headers['subject'] || '—';
+    metaDate.textContent = headers['date'] || '—';
+
+    mailBody.value = bodyBlock.trim() || raw;
+
+    // Pre-fill reply fields.
+    if (headers['from']) document.getElementById('replyTo').value = headers['from'];
+    if (headers['subject']) {
+      const subj = headers['subject'];
+      document.getElementById('replySubject').value = /^re:/i.test(subj) ? subj : ('Re: ' + subj);
+    }
+  }
+
+  document.getElementById('clearMailBtn').addEventListener('click', () => {
+    mailBody.value = '';
+    clearMeta();
+    fileInput.value = '';
+  });
+
+  document.getElementById('readMailBtn').addEventListener('click', () => {
+    if (!('speechSynthesis' in window)) {
+      alert('Text-to-speech is not supported in this browser.');
+      return;
+    }
+    const text = mailBody.value.trim();
+    if (!text) { alert('There is no mail content to read.'); return; }
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = currentLang;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+  });
+
+  // ---------- Reply: dictation ----------
+  const replyBody = document.getElementById('replyBody');
+  const micBtn = document.getElementById('micBtn');
+  const interim = document.getElementById('interim');
+  const statusEl = document.getElementById('status');
+  const statusText = document.getElementById('statusText');
+  const langToggle = document.getElementById('langToggle');
+  const unsupportedBanner = document.getElementById('unsupportedBanner');
+
+  let currentLang = 'en-US';
+  let recognition = null;
+  let recognizing = false;
+
+  langToggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-lang]');
+    if (!btn) return;
+    [...langToggle.querySelectorAll('button')].forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentLang = btn.dataset.lang;
+    if (recognizing) {
+      // Restart recognition with the new language.
+      stopRecognition();
+      setTimeout(startRecognition, 250);
+    }
+  });
+
+  const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognitionImpl) {
+    unsupportedBanner.style.display = 'block';
+    micBtn.disabled = true;
+    statusText.textContent = 'Not supported';
+  } else {
+    recognition = new SpeechRecognitionImpl();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = currentLang;
+
+    recognition.onstart = () => {
+      recognizing = true;
+      micBtn.textContent = '⏹ Stop Dictation';
+      micBtn.classList.add('recording');
+      statusEl.classList.add('listening');
+      statusText.textContent = 'Listening… (' + currentLang + ')';
+    };
+
+    recognition.onend = () => {
+      recognizing = false;
+      micBtn.textContent = '🎙️ Start Dictation';
+      micBtn.classList.remove('recording');
+      statusEl.classList.remove('listening');
+      statusEl.classList.remove('ok');
+      statusText.textContent = 'Idle';
+      interim.textContent = '';
+    };
+
+    recognition.onerror = (event) => {
+      statusEl.classList.remove('listening');
+      statusText.textContent = 'Error: ' + event.error;
+    };
+
+    recognition.onresult = (event) => {
+      let finalChunk = '';
+      let interimChunk = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalChunk += transcript;
+        } else {
+          interimChunk += transcript;
+        }
+      }
+      if (finalChunk) {
+        const needsSpace = replyBody.value && !/\s$/.test(replyBody.value);
+        replyBody.value += (needsSpace ? ' ' : '') + finalChunk.trim() + ' ';
+      }
+      interim.textContent = interimChunk;
+    };
+  }
+
+  function startRecognition() {
+    if (!recognition) return;
+    recognition.lang = currentLang;
+    try {
+      recognition.start();
+    } catch (err) {
+      // start() throws if already started; ignore.
+    }
+  }
+
+  function stopRecognition() {
+    if (!recognition) return;
+    recognition.stop();
+  }
+
+  micBtn.addEventListener('click', () => {
+    if (!recognition) return;
+    if (recognizing) {
+      stopRecognition();
+    } else {
+      startRecognition();
+    }
+  });
+
+  // ---------- Reply: actions ----------
+  document.getElementById('clearReplyBtn').addEventListener('click', () => {
+    replyBody.value = '';
+    interim.textContent = '';
+  });
+
+  document.getElementById('copyReplyBtn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(replyBody.value);
+      flashStatusOk('Copied to clipboard');
+    } catch (err) {
+      // Fallback for browsers/contexts without Clipboard API access.
+      replyBody.select();
+      document.execCommand('copy');
+      flashStatusOk('Copied to clipboard');
+    }
+  });
+
+  function flashStatusOk(msg) {
+    const prev = statusText.textContent;
+    statusEl.classList.add('ok');
+    statusText.textContent = msg;
+    setTimeout(() => {
+      statusEl.classList.remove('ok');
+      statusText.textContent = prev;
+    }, 1500);
+  }
+
+  function download(filename, content, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById('downloadTxtBtn').addEventListener('click', () => {
+    download('reply.txt', replyBody.value, 'text/plain;charset=utf-8');
+  });
+
+  document.getElementById('downloadEmlBtn').addEventListener('click', () => {
+    const to = document.getElementById('replyTo').value || '';
+    const subject = document.getElementById('replySubject').value || '';
+    const date = new Date().toUTCString();
+    const eml =
+      'To: ' + to + '\r\n' +
+      'Subject: ' + subject + '\r\n' +
+      'Date: ' + date + '\r\n' +
+      'MIME-Version: 1.0\r\n' +
+      'Content-Type: text/plain; charset=UTF-8\r\n' +
+      '\r\n' +
+      replyBody.value;
+    download('reply.eml', eml, 'message/rfc822');
+  });
+
+})();
+</script>
+
+</body>
+</html>

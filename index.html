@@ -652,10 +652,42 @@
 
   function htmlToPlainText(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
+    // Drop elements that are never actually visible in a mail client. textContent
+    // ignores CSS entirely, so without this, hidden verification tokens / tracking
+    // markers that "external sender" security banners commonly inject via
+    // style="display:none" (or Outlook's mso-hide:all) leak into the extracted text.
+    doc.querySelectorAll('script, style, head').forEach(el => el.remove());
+    doc.querySelectorAll('[style], [hidden]').forEach(el => {
+      const style = el.getAttribute('style') || '';
+      if (el.hasAttribute('hidden')
+        || /display\s*:\s*none/i.test(style)
+        || /visibility\s*:\s*hidden/i.test(style)
+        || /mso-hide\s*:\s*all/i.test(style)) {
+        el.remove();
+      }
+    });
     doc.querySelectorAll('br').forEach(el => el.replaceWith('\n'));
     doc.querySelectorAll('p, div, li, tr, h1, h2, h3, h4, h5, h6, blockquote').forEach(el => el.append('\n'));
     const text = (doc.body ? doc.body.textContent : doc.documentElement.textContent) || '';
-    return text.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
+    return stripLongEncodedTokens(text.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim());
+  }
+
+  // Safety net for plain-text bodies too: some security/disclaimer banners inject a
+  // long base64-ish verification token as a standalone line of *visible* plain text
+  // (not just hidden HTML), which isn't part of the actual message a reply is about.
+  // Only strips a line that is ENTIRELY such a token (real URLs contain ':' and '.'
+  // and won't match), so genuine content is left alone.
+  function stripLongEncodedTokens(text) {
+    return text
+      .split('\n')
+      .map(line => {
+        // Tolerate a single wrapping '<'/'>' (e.g. Message-ID-style "<token>" banners).
+        const trimmed = line.trim().replace(/^</, '').replace(/>$/, '');
+        return /^[A-Za-z0-9+/=]{60,}$/.test(trimmed) ? '' : line;
+      })
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   // Walks the (possibly nested multipart) MIME tree and picks the best readable text:
@@ -668,9 +700,9 @@
       if (p.type === 'text/plain' && plain === null) plain = decodePartText(p);
       else if (p.type === 'text/html' && html === null) html = decodePartText(p);
     })(message);
-    if (plain && plain.trim()) return plain;
+    if (plain && plain.trim()) return stripLongEncodedTokens(plain);
     if (html && html.trim()) return htmlToPlainText(html);
-    if (!message.children) return decodePartText(message); // single, non-multipart message
+    if (!message.children) return stripLongEncodedTokens(decodePartText(message)); // single, non-multipart message
     return '';
   }
 
@@ -764,7 +796,7 @@
     metaSubject.textContent = subject || '—';
     metaDate.textContent = date || '—';
 
-    let text = fileData.body || '';
+    let text = fileData.body ? stripLongEncodedTokens(fileData.body) : '';
     if (!text.trim() && fileData.bodyHtml) text = htmlToPlainText(fileData.bodyHtml);
     if (!text.trim() && fileData.html) {
       try { text = htmlToPlainText(new TextDecoder('utf-8', { fatal: false }).decode(fileData.html)); } catch (e) { /* ignore */ }

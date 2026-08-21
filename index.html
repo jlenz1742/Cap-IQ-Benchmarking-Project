@@ -214,6 +214,39 @@
     font-size: 12px;
     color: var(--muted);
   }
+
+  .mode-bar {
+    max-width: 1300px;
+    margin: 16px auto 0;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .mode-bar span { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .mode-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    background: white;
+  }
+  .mode-toggle button {
+    border: none;
+    background: transparent;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--muted);
+  }
+  .mode-toggle button.active {
+    background: var(--accent);
+    color: white;
+  }
+  .layout.compose-only { grid-template-columns: 1fr; }
+  .layout.compose-only #mailPanel { display: none; }
 </style>
 </head>
 <body>
@@ -229,10 +262,18 @@
   via <code>http://</code>/<code>https://</code> (or opened directly in Chrome).
 </div>
 
-<div class="layout">
+<div class="mode-bar">
+  <span>Mode:</span>
+  <div class="mode-toggle" id="modeToggle">
+    <button data-mode="reply" class="active">📥 Reply to a mail</button>
+    <button data-mode="compose">✍️ Write a new mail (skip upload)</button>
+  </div>
+</div>
+
+<div class="layout" id="layout">
 
   <!-- LEFT: Original mail -->
-  <div class="panel">
+  <div class="panel" id="mailPanel">
     <h2>📥 Original Mail</h2>
 
     <div id="dropzone" class="dropzone">
@@ -307,6 +348,25 @@
 (function () {
   "use strict";
 
+  // ---------- Mode: reply to a mail vs. write a new mail from scratch ----------
+  const layout = document.getElementById('layout');
+  const modeToggle = document.getElementById('modeToggle');
+  const replySubjectInputEl = document.getElementById('replySubject');
+
+  modeToggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    [...modeToggle.querySelectorAll('button')].forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const compose = btn.dataset.mode === 'compose';
+    layout.classList.toggle('compose-only', compose);
+    if (compose) {
+      replySubjectInputEl.placeholder = 'Subject';
+    } else {
+      replySubjectInputEl.placeholder = 'Re: ...';
+    }
+  });
+
   // ---------- Original mail: upload / parse ----------
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
@@ -333,15 +393,21 @@
   function handleFile(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      const raw = e.target.result;
+      const buffer = e.target.result;
       if (/\.eml$/i.test(file.name) || /message\/rfc822/.test(file.type)) {
-        parseEml(raw);
+        try {
+          parseEml(buffer);
+        } catch (err) {
+          console.error('Failed to parse .eml as MIME, falling back to raw text.', err);
+          mailBody.value = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+          clearMeta();
+        }
       } else {
-        mailBody.value = raw;
+        mailBody.value = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
         clearMeta();
       }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   }
 
   function clearMeta() {
@@ -351,33 +417,190 @@
     metaDate.textContent = '—';
   }
 
-  function parseEml(raw) {
-    // Split headers from body at first blank line.
-    const splitIdx = raw.search(/\r?\n\r?\n/);
-    const headerBlock = splitIdx !== -1 ? raw.slice(0, splitIdx) : raw;
-    const bodyBlock = splitIdx !== -1 ? raw.slice(splitIdx).replace(/^\r?\n\r?\n/, '') : '';
+  // ---- Minimal, dependency-free MIME (.eml) parser ----
+  // Handles multipart/*, base64 / quoted-printable transfer encodings, arbitrary
+  // charsets, and RFC 2047 encoded-word headers (=?UTF-8?B?...?=).
 
-    // Unfold header continuation lines (lines starting with whitespace belong to previous header).
+  function normalizeCharset(cs) {
+    const c = (cs || 'utf-8').toLowerCase().trim().replace(/^"|"$/g, '');
+    if (c === 'utf8') return 'utf-8';
+    if (c === 'iso8859-1' || c === 'latin1' || c === 'iso-8859-1') return 'iso-8859-1';
+    return c;
+  }
+
+  function decodeQuotedPrintable(str) {
+    const noSoftBreaks = str.replace(/=\r?\n/g, '');
+    const bytes = [];
+    for (let i = 0; i < noSoftBreaks.length; i++) {
+      const ch = noSoftBreaks[i];
+      if (ch === '=' && /^[0-9A-Fa-f]{2}$/.test(noSoftBreaks.substr(i + 1, 2))) {
+        bytes.push(parseInt(noSoftBreaks.substr(i + 1, 2), 16));
+        i += 2;
+      } else {
+        bytes.push(ch.charCodeAt(0) & 0xff);
+      }
+    }
+    return Uint8Array.from(bytes);
+  }
+
+  function decodeEncodedWord(charset, enc, text) {
+    try {
+      let bytes;
+      if (enc.toUpperCase() === 'B') {
+        bytes = Uint8Array.from(atob(text), c => c.charCodeAt(0));
+      } else {
+        bytes = decodeQuotedPrintable(text.replace(/_/g, ' '));
+      }
+      return new TextDecoder(normalizeCharset(charset), { fatal: false }).decode(bytes);
+    } catch (e) {
+      return text;
+    }
+  }
+
+  // Decodes RFC 2047 "=?charset?B/Q?...?=" encoded-words that appear in
+  // headers like From/To/Subject when they contain non-ASCII characters.
+  function decodeMimeHeader(value) {
+    if (!value) return value;
+    const re = /=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g;
+    let result = '', lastIndex = 0, match;
+    while ((match = re.exec(value)) !== null) {
+      result += value.slice(lastIndex, match.index);
+      result += decodeEncodedWord(match[1], match[2], match[3]);
+      lastIndex = re.lastIndex;
+      const gap = value.slice(lastIndex).match(/^(\s+)(?==\?)/);
+      if (gap) lastIndex += gap[1].length; // collapse whitespace between adjacent encoded-words
+    }
+    result += value.slice(lastIndex);
+    return result;
+  }
+
+  function extractEmailAddress(str) {
+    const m = str.match(/<([^>]+)>/);
+    return m ? m[1] : str.trim();
+  }
+
+  function parseContentType(str) {
+    const segments = str.split(';').map(s => s.trim()).filter(Boolean);
+    const type = (segments.shift() || 'text/plain').toLowerCase();
+    const params = {};
+    segments.forEach(seg => {
+      const m = seg.match(/^([^=]+)=(.*)$/);
+      if (m) {
+        let val = m[2].trim();
+        if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+        params[m[1].trim().toLowerCase()] = val;
+      }
+    });
+    return { type, params };
+  }
+
+  // Splits a multipart body on its boundary marker into the raw text of each part.
+  function splitByBoundary(str, boundary) {
+    const marker = '--' + boundary;
+    const pieces = str.split(marker);
+    const parts = [];
+    for (let i = 1; i < pieces.length; i++) {
+      const piece = pieces[i];
+      if (piece.startsWith('--')) break; // reached the closing boundary ("--boundary--")
+      const p = piece.replace(/^\r?\n/, '').replace(/\r?\n$/, '');
+      if (p.trim().length) parts.push(p);
+    }
+    return parts;
+  }
+
+  // Parses one MIME part (recursively, for multipart/*) from its raw byte-preserving string.
+  function parseMimePart(raw) {
+    const idx = raw.search(/\r?\n\r?\n/);
+    const headerBlock = idx !== -1 ? raw.slice(0, idx) : raw;
+    const bodyRaw = idx !== -1 ? raw.slice(idx).replace(/^\r?\n\r?\n/, '') : '';
+
     const unfolded = headerBlock.replace(/\r?\n[ \t]+/g, ' ');
-    const lines = unfolded.split(/\r?\n/);
     const headers = {};
-    lines.forEach((line) => {
-      const m = line.match(/^([A-Za-z-]+):\s*(.*)$/);
+    unfolded.split(/\r?\n/).forEach(line => {
+      const m = line.match(/^([A-Za-z0-9-]+):\s*(.*)$/);
       if (m) headers[m[1].toLowerCase()] = m[2].trim();
     });
 
-    metaFrom.textContent = headers['from'] || '—';
-    metaTo.textContent = headers['to'] || '—';
-    metaSubject.textContent = headers['subject'] || '—';
+    const { type, params } = parseContentType(headers['content-type'] || 'text/plain; charset=us-ascii');
+    const cte = (headers['content-transfer-encoding'] || '7bit').toLowerCase().trim();
+    const disposition = (headers['content-disposition'] || '').toLowerCase();
+    const part = { headers, type, params, cte, disposition, body: bodyRaw };
+
+    if (type.startsWith('multipart/') && params.boundary) {
+      part.children = splitByBoundary(bodyRaw, params.boundary).map(parseMimePart);
+    }
+    return part;
+  }
+
+  // Decodes a leaf part's body into text, honoring its transfer-encoding and charset.
+  function decodePartText(part) {
+    const binStr = part.body;
+    let bytes;
+    if (part.cte === 'base64') {
+      let bin = '';
+      try { bin = atob(binStr.replace(/[^A-Za-z0-9+/=]/g, '')); } catch (e) { /* leave empty on malformed base64 */ }
+      bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+    } else if (part.cte === 'quoted-printable') {
+      bytes = decodeQuotedPrintable(binStr);
+    } else {
+      // 7bit / 8bit / binary: the byte-preserving string already holds the raw bytes.
+      bytes = Uint8Array.from(binStr, c => c.charCodeAt(0) & 0xff);
+    }
+    try {
+      return new TextDecoder(normalizeCharset(part.params.charset), { fatal: false }).decode(bytes);
+    } catch (e) {
+      return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    }
+  }
+
+  function htmlToPlainText(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('br').forEach(el => el.replaceWith('\n'));
+    doc.querySelectorAll('p, div, li, tr, h1, h2, h3, h4, h5, h6, blockquote').forEach(el => el.append('\n'));
+    const text = (doc.body ? doc.body.textContent : doc.documentElement.textContent) || '';
+    return text.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
+  }
+
+  // Walks the (possibly nested multipart) MIME tree and picks the best readable text:
+  // prefer the first text/plain part found, otherwise fall back to text/html.
+  function extractReadableText(message) {
+    let plain = null, html = null;
+    (function walk(p) {
+      if (p.children && p.children.length) { p.children.forEach(walk); return; }
+      if (/^attachment/.test(p.disposition)) return;
+      if (p.type === 'text/plain' && plain === null) plain = decodePartText(p);
+      else if (p.type === 'text/html' && html === null) html = decodePartText(p);
+    })(message);
+    if (plain && plain.trim()) return plain;
+    if (html && html.trim()) return htmlToPlainText(html);
+    if (!message.children) return decodePartText(message); // single, non-multipart message
+    return '';
+  }
+
+  function parseEml(buffer) {
+    // Decode every byte 1:1 into a code point (ISO-8859-1 is a lossless byte<->char
+    // mapping) so we can safely do string/regex work on MIME structure without
+    // corrupting binary/base64 content, then re-decode each part's real bytes
+    // with its declared charset when extracting the final text.
+    const raw = new TextDecoder('iso-8859-1').decode(new Uint8Array(buffer));
+    const message = parseMimePart(raw);
+    const headers = message.headers;
+
+    const from = decodeMimeHeader(headers['from']);
+    const to = decodeMimeHeader(headers['to']);
+    const subject = decodeMimeHeader(headers['subject']);
+
+    metaFrom.textContent = from || '—';
+    metaTo.textContent = to || '—';
+    metaSubject.textContent = subject || '—';
     metaDate.textContent = headers['date'] || '—';
 
-    mailBody.value = bodyBlock.trim() || raw;
+    const text = extractReadableText(message);
+    mailBody.value = text.trim() || '(No readable text content found in this mail — it may only contain attachments or an unsupported format.)';
 
-    // Pre-fill reply fields.
-    if (headers['from']) document.getElementById('replyTo').value = headers['from'];
-    if (headers['subject']) {
-      const subj = headers['subject'];
-      document.getElementById('replySubject').value = /^re:/i.test(subj) ? subj : ('Re: ' + subj);
+    if (from) document.getElementById('replyTo').value = extractEmailAddress(from);
+    if (subject) {
+      document.getElementById('replySubject').value = /^re:/i.test(subject) ? subject : ('Re: ' + subject);
     }
   }
 

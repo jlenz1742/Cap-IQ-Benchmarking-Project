@@ -247,13 +247,68 @@
   }
   .layout.compose-only { grid-template-columns: 1fr; }
   .layout.compose-only #mailPanel { display: none; }
+
+  .error-banner {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+
+  .ai-box {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    background: #f8f9ff;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .ai-box h3 {
+    margin: 0;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ai-box p.hint { margin: -4px 0 0; }
+  .ai-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .ai-row input[type="password"] {
+    flex: 1;
+    min-width: 180px;
+  }
+  select.field-input {
+    width: auto;
+  }
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+  }
+  #aiDraftBtn {
+    background: #16a34a;
+    color: white;
+    border-color: #16a34a;
+  }
+  #aiDraftBtn:hover { background: #15803d; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>🎙️ Mail Dictation Assistant</h1>
-  <p>Upload an email, then dictate your reply by voice — choose English or German.</p>
+  <p>Upload an email (.eml/.msg), dictate rough notes in English or German, and let AI turn them into a polished reply.</p>
 </header>
 
 <div id="unsupportedBanner" class="warning-banner" style="display:none;">
@@ -277,10 +332,12 @@
     <h2>📥 Original Mail</h2>
 
     <div id="dropzone" class="dropzone">
-      <div>Drop a <strong>.eml</strong> / <strong>.txt</strong> file here, or click to choose one</div>
+      <div>Drop a <strong>.msg</strong> / <strong>.eml</strong> / <strong>.txt</strong> file here, or click to choose one</div>
       <small>You can also just paste the mail text directly into the box below.</small>
-      <input type="file" id="fileInput" accept=".eml,.txt,text/plain,message/rfc822">
+      <input type="file" id="fileInput" accept=".eml,.msg,.txt,text/plain,message/rfc822,application/vnd.ms-outlook">
     </div>
+
+    <div id="mailParseError" class="error-banner" style="display:none;"></div>
 
     <div class="mail-meta">
       <span class="label">From:</span><span class="value" id="metaFrom">—</span>
@@ -300,9 +357,9 @@
     </div>
   </div>
 
-  <!-- RIGHT: Reply by dictation -->
+  <!-- RIGHT: Compose reply -->
   <div class="panel">
-    <h2>✍️ Reply by Dictation</h2>
+    <h2>✍️ Compose Reply</h2>
 
     <div class="controls-row">
       <div>
@@ -328,11 +385,37 @@
       <label class="field-label" for="replySubject">Subject</label>
       <input class="field-input" id="replySubject" placeholder="Re: ...">
     </div>
-    <div class="field-group" style="flex:1;">
-      <label class="field-label" for="replyBody">Reply text (dictated text appears here — you can also edit it manually)</label>
-      <textarea id="replyBody" placeholder="Click 'Start Dictation' and speak your reply..."></textarea>
+
+    <div class="field-group">
+      <label class="field-label" for="notesBody">Your notes (dictate or type — rough &amp; unstructured is fine)</label>
+      <textarea id="notesBody" style="min-height:110px;" placeholder="Click 'Start Dictation' and just talk through what you want to say — bullet fragments, half-sentences, whatever comes to mind..."></textarea>
     </div>
-    <p class="hint">Tip: switch the language toggle any time — even mid-reply — before pressing "Start Dictation" again to mix English and German passages.</p>
+
+    <div class="ai-box">
+      <h3>✨ AI Reply Assistant</h3>
+      <p class="hint">Turns your notes above (plus the original mail, if any) into a short, professional reply in a calm, pragmatic consultant style.</p>
+      <div class="ai-row">
+        <input type="password" class="field-input" id="apiKeyInput" placeholder="Anthropic API key (sk-ant-...)">
+        <select class="field-input" id="modelSelect">
+          <option value="claude-sonnet-5" selected>Claude Sonnet 5 (recommended)</option>
+          <option value="claude-opus-5">Claude Opus 5 (highest quality)</option>
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fastest)</option>
+        </select>
+        <button class="link-btn" id="clearApiKeyBtn" type="button">Clear key</button>
+      </div>
+      <p class="hint">🔒 Your key is stored only in this browser (localStorage) and sent directly to Anthropic's API — never anywhere else.</p>
+      <div id="aiError" class="error-banner" style="display:none;"></div>
+      <div class="ai-row">
+        <button class="action" id="aiDraftBtn">✨ Draft reply with AI</button>
+        <button class="action" id="useNotesBtn">➡️ Use notes as reply (no AI)</button>
+      </div>
+    </div>
+
+    <div class="field-group" style="flex:1;">
+      <label class="field-label" for="replyBody">Polished reply (AI draft appears here — edit freely, this is what gets copied/downloaded)</label>
+      <textarea id="replyBody" placeholder="Your final reply will appear here after drafting — or just type/paste it directly."></textarea>
+    </div>
+    <p class="hint">Tip: switch the language toggle any time — even mid-dictation — to mix English and German notes. The AI draft is written in whichever language is selected.</p>
 
     <div class="footer-actions">
       <button class="action" id="clearReplyBtn">🗑️ Clear reply</button>
@@ -375,6 +458,16 @@
   const metaTo = document.getElementById('metaTo');
   const metaSubject = document.getElementById('metaSubject');
   const metaDate = document.getElementById('metaDate');
+  const mailParseError = document.getElementById('mailParseError');
+
+  function showMailParseError(message) {
+    mailParseError.textContent = message;
+    mailParseError.style.display = 'block';
+  }
+  function hideMailParseError() {
+    mailParseError.style.display = 'none';
+    mailParseError.textContent = '';
+  }
 
   dropzone.addEventListener('click', () => fileInput.click());
   dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
@@ -392,17 +485,21 @@
 
   function handleFile(file) {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const buffer = e.target.result;
-      if (/\.eml$/i.test(file.name) || /message\/rfc822/.test(file.type)) {
-        try {
+      hideMailParseError();
+      try {
+        if (/\.msg$/i.test(file.name) || /application\/vnd\.ms-outlook/.test(file.type)) {
+          await parseMsg(buffer);
+        } else if (/\.eml$/i.test(file.name) || /message\/rfc822/.test(file.type)) {
           parseEml(buffer);
-        } catch (err) {
-          console.error('Failed to parse .eml as MIME, falling back to raw text.', err);
+        } else {
           mailBody.value = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
           clearMeta();
         }
-      } else {
+      } catch (err) {
+        console.error('Failed to parse mail file.', err);
+        showMailParseError('Could not read this file: ' + err.message + ' — falling back to raw text (may look garbled for .msg files).');
         mailBody.value = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
         clearMeta();
       }
@@ -604,9 +701,66 @@
     }
   }
 
+  // ---- .msg (Outlook binary format) parser ----
+  // .msg files use Microsoft's OLE Compound File binary format, not plain MIME text,
+  // so they can't be decoded with the .eml parser above. We lazily load a small,
+  // well-tested parser library from a CDN (only when a .msg file is actually
+  // uploaded) instead of reimplementing OLE/CFB parsing by hand.
+  let msgReaderCtorPromise = null;
+  function loadMsgReaderCtor() {
+    if (!msgReaderCtorPromise) {
+      msgReaderCtorPromise = import('https://cdn.jsdelivr.net/npm/@kenjiuno/msgreader/+esm')
+        .then(mod => mod.default || mod)
+        .catch(err => {
+          msgReaderCtorPromise = null; // allow retrying on the next upload
+          throw new Error('Could not load the .msg parser library (needs an internet connection). ' + err.message);
+        });
+    }
+    return msgReaderCtorPromise;
+  }
+
+  function formatMsgRecipient(r) {
+    if (!r) return '';
+    if (r.name && r.email && r.name !== r.email) return r.name + ' <' + r.email + '>';
+    return r.email || r.name || '';
+  }
+
+  async function parseMsg(buffer) {
+    const MsgReaderCtor = await loadMsgReaderCtor();
+    const msgReader = new MsgReaderCtor(buffer);
+    const fileData = msgReader.getFileData();
+    if (!fileData || fileData.error) {
+      throw new Error((fileData && fileData.error) || 'Unrecognized .msg file.');
+    }
+
+    const from = formatMsgRecipient({ name: fileData.senderName, email: fileData.senderEmail });
+    const toRecipients = (fileData.recipients || []).filter(r => !r.recipType || r.recipType === 'to');
+    const to = toRecipients.map(formatMsgRecipient).filter(Boolean).join('; ');
+    const subject = fileData.subject || fileData.normalizedSubject || '';
+    const date = fileData.messageDeliveryTime || fileData.clientSubmitTime || '';
+
+    metaFrom.textContent = from || '—';
+    metaTo.textContent = to || '—';
+    metaSubject.textContent = subject || '—';
+    metaDate.textContent = date || '—';
+
+    let text = fileData.body || '';
+    if (!text.trim() && fileData.bodyHtml) text = htmlToPlainText(fileData.bodyHtml);
+    if (!text.trim() && fileData.html) {
+      try { text = htmlToPlainText(new TextDecoder('utf-8', { fatal: false }).decode(fileData.html)); } catch (e) { /* ignore */ }
+    }
+    mailBody.value = text.trim() || '(No readable text content found in this .msg file — it may only contain attachments or an unsupported body format.)';
+
+    if (fileData.senderEmail) document.getElementById('replyTo').value = fileData.senderEmail;
+    if (subject) {
+      document.getElementById('replySubject').value = /^re:/i.test(subject) ? subject : ('Re: ' + subject);
+    }
+  }
+
   document.getElementById('clearMailBtn').addEventListener('click', () => {
     mailBody.value = '';
     clearMeta();
+    hideMailParseError();
     fileInput.value = '';
   });
 
@@ -625,6 +779,7 @@
 
   // ---------- Reply: dictation ----------
   const replyBody = document.getElementById('replyBody');
+  const notesBody = document.getElementById('notesBody');
   const micBtn = document.getElementById('micBtn');
   const interim = document.getElementById('interim');
   const statusEl = document.getElementById('status');
@@ -696,8 +851,8 @@
         }
       }
       if (finalChunk) {
-        const needsSpace = replyBody.value && !/\s$/.test(replyBody.value);
-        replyBody.value += (needsSpace ? ' ' : '') + finalChunk.trim() + ' ';
+        const needsSpace = notesBody.value && !/\s$/.test(notesBody.value);
+        notesBody.value += (needsSpace ? ' ' : '') + finalChunk.trim() + ' ';
       }
       interim.textContent = interimChunk;
     };
@@ -731,6 +886,131 @@
   document.getElementById('clearReplyBtn').addEventListener('click', () => {
     replyBody.value = '';
     interim.textContent = '';
+  });
+
+  document.getElementById('useNotesBtn').addEventListener('click', () => {
+    if (!notesBody.value.trim()) return;
+    replyBody.value = notesBody.value.trim();
+  });
+
+  // ---------- AI Reply Assistant (Anthropic Claude API, bring-your-own-key) ----------
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const modelSelect = document.getElementById('modelSelect');
+  const aiDraftBtn = document.getElementById('aiDraftBtn');
+  const aiError = document.getElementById('aiError');
+  const API_KEY_STORAGE_KEY = 'mailDictationAssistant_anthropicApiKey';
+
+  const SYSTEM_PROMPT = [
+    'You are my email assistant. Draft replies in the style of an experienced consultant/manager.',
+    'Style',
+    '- Short, precise, and to the point',
+    '- Professional, calm, and confident',
+    '- Always kind and respectful, but never euphoric or overly enthusiastic',
+    '- Use simple, direct language',
+    '- Use bullets when they improve clarity, especially for actions, questions, decisions, or next steps',
+    '- Avoid unnecessary introductions, repetition, and filler',
+    '- Avoid excessive thanks, praise, exclamation marks, or corporate jargon',
+    '- Keep the tone pragmatic and solution-oriented',
+    '',
+    'Structure',
+    '- Start with a brief acknowledgment when appropriate',
+    '- Address the key point immediately',
+    '- Use bullets for multiple topics',
+    '- Clearly state decisions, expectations, owners, or next steps',
+    '- End briefly and naturally',
+    '',
+    'Default',
+    'Keep replies as short as possible while still being clear, polite, and complete. Do not over-explain. If the incoming email is ambiguous, flag what needs clarification rather than making assumptions.',
+    'When I provide an email, return only the proposed reply unless I ask for commentary or alternatives.'
+  ].join('\n');
+
+  try {
+    const savedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+    if (savedKey) apiKeyInput.value = savedKey;
+  } catch (e) { /* localStorage unavailable (private mode etc.) — key just won't persist */ }
+
+  apiKeyInput.addEventListener('change', () => {
+    try {
+      if (apiKeyInput.value.trim()) localStorage.setItem(API_KEY_STORAGE_KEY, apiKeyInput.value.trim());
+      else localStorage.removeItem(API_KEY_STORAGE_KEY);
+    } catch (e) { /* ignore */ }
+  });
+
+  document.getElementById('clearApiKeyBtn').addEventListener('click', () => {
+    apiKeyInput.value = '';
+    try { localStorage.removeItem(API_KEY_STORAGE_KEY); } catch (e) { /* ignore */ }
+  });
+
+  function showAiError(message) {
+    aiError.textContent = message;
+    aiError.style.display = 'block';
+  }
+  function hideAiError() {
+    aiError.style.display = 'none';
+    aiError.textContent = '';
+  }
+
+  function buildAiUserMessage() {
+    const mailText = mailBody.value.trim();
+    const notes = notesBody.value.trim();
+    const langLabel = currentLang === 'de-DE' ? 'German' : 'English';
+    let msg = '';
+    if (mailText) {
+      msg += 'Original email I received:\n"""\n' + mailText + '\n"""\n\n';
+    }
+    msg += 'My notes / rough points for the reply (unstructured, may be fragments):\n"""\n' +
+      (notes || '(no notes provided — draft a short, appropriate reply based only on the original email above)') +
+      '\n"""\n\n';
+    msg += 'Write the reply in ' + langLabel + '.\n';
+    msg += 'Return only the proposed reply text (no subject line, no extra commentary).';
+    return msg;
+  }
+
+  aiDraftBtn.addEventListener('click', async () => {
+    hideAiError();
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) { showAiError('Enter your Anthropic API key first.'); return; }
+    if (!mailBody.value.trim() && !notesBody.value.trim()) {
+      showAiError('Add some notes (or an original mail) first.');
+      return;
+    }
+
+    aiDraftBtn.disabled = true;
+    const prevLabel = aiDraftBtn.textContent;
+    aiDraftBtn.textContent = '✨ Drafting…';
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: modelSelect.value,
+          max_tokens: 1024,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: buildAiUserMessage() }]
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error((data && data.error && data.error.message) || ('Request failed with status ' + res.status));
+      }
+      const textBlock = (data.content || []).find(b => b.type === 'text');
+      const draft = textBlock ? textBlock.text.trim() : '';
+      if (!draft) throw new Error('The API returned an empty response.');
+      replyBody.value = draft;
+      flashStatusOk('Draft ready');
+    } catch (err) {
+      console.error('AI drafting failed', err);
+      showAiError('AI drafting failed: ' + err.message);
+    } finally {
+      aiDraftBtn.disabled = false;
+      aiDraftBtn.textContent = prevLabel;
+    }
   });
 
   document.getElementById('copyReplyBtn').addEventListener('click', async () => {

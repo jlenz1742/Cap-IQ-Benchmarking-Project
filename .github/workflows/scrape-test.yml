@@ -9,17 +9,16 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-jammy
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Install playwright
-        run: |
-          npm init -y >/dev/null
-          npm install playwright@1.56.1 >/dev/null
-          npx playwright install --with-deps chromium
+      - name: Install playwright npm package
+        timeout-minutes: 3
+        run: npm install playwright@1.56.1
       - name: Run scraper on test zip list
+        timeout-minutes: 5
         run: |
           ZIP_FILE=data/test_zips.csv OUT_FILE=results.jsonl ERR_FILE=errors.jsonl node scripts/scrape-dealers.js
       - name: Merge results

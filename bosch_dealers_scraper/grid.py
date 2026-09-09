@@ -10,12 +10,20 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Iterator, Tuple
+from typing import Dict, Iterator, Tuple
 
 KM_PER_DEGREE_LAT = 111.32
 
-# Roughly the bounding box of mainland Germany (lat_min, lon_min, lat_max, lon_max).
+# Rough bounding boxes as (lat_min, lon_min, lat_max, lon_max).
 GERMANY_BBOX: Tuple[float, float, float, float] = (47.2, 5.5, 55.1, 15.5)
+# Mainland France plus Corsica.
+FRANCE_BBOX: Tuple[float, float, float, float] = (41.3, -5.2, 51.1, 9.6)
+
+# --country presets for the CLI: name -> (market path, default bbox).
+COUNTRY_PRESETS: Dict[str, Tuple[str, Tuple[float, float, float, float]]] = {
+    "de": ("de/de", GERMANY_BBOX),
+    "fr": ("fr/fr", FRANCE_BBOX),
+}
 
 
 @dataclass(frozen=True)

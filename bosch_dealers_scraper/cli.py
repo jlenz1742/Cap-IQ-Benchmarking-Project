@@ -15,6 +15,10 @@ Search around a free-text location (geocoded via OpenStreetMap Nominatim)::
 Sweep an entire country (default bounding box is Germany) and de-duplicate::
 
     python -m bosch_dealers_scraper --country-scan --output dealers_de.csv
+
+Sweep a different known country via the ``--country`` shortcut::
+
+    python -m bosch_dealers_scraper --country-scan --country fr --output dealers_fr.csv
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from .client import DEFAULT_MARKET, MAX_SENSIBLE_RADIUS_M, BoschDealerClient, DealerLocatorError
 from .geocode import GeocodeError, geocode
-from .grid import GERMANY_BBOX, generate_grid
+from .grid import COUNTRY_PRESETS, GERMANY_BBOX, generate_grid
 from .models import FIELDNAMES, flatten_dealer
 
 logger = logging.getLogger("bosch_dealers_scraper")
@@ -79,11 +83,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
         f"{MAX_SENSIBLE_RADIUS_M / 1000:g}, the site's own maximum).",
     )
     parser.add_argument(
+        "--country",
+        choices=sorted(COUNTRY_PRESETS),
+        default=None,
+        help="Shortcut that sets --market and --bbox for a known country "
+        f"({', '.join(sorted(COUNTRY_PRESETS))}). Either can still be "
+        "overridden explicitly.",
+    )
+    parser.add_argument(
         "--bbox",
         type=_parse_bbox,
-        default=GERMANY_BBOX,
+        default=None,
         help="Bounding box for --country-scan as 'lat_min,lon_min,lat_max,lon_max' "
-        "(default: Germany).",
+        "(default: Germany, or --country's bbox if set).",
     )
     parser.add_argument(
         "--spacing-km",
@@ -102,10 +114,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--market",
-        default=DEFAULT_MARKET,
+        default=None,
         help="Bosch Professional market path, e.g. 'de/de', 'at/de', 'fr/fr', "
-        f"'gb/en' (default: {DEFAULT_MARKET!r}). See robots.txt for every "
-        "market's sitemap.",
+        f"'gb/en' (default: {DEFAULT_MARKET!r}, or --country's market if set). "
+        "See robots.txt for every market's sitemap.",
     )
     parser.add_argument(
         "--delay",
@@ -255,8 +267,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.lat is not None and args.lon is None:
         parser.error("--lat requires --lon")
 
+    preset_market, preset_bbox = COUNTRY_PRESETS.get(args.country, (DEFAULT_MARKET, GERMANY_BBOX))
+    market = args.market or preset_market
+    bbox = args.bbox or preset_bbox
+
     client_kwargs: Dict[str, Any] = dict(
-        market=args.market,
+        market=market,
         request_delay=args.delay,
         max_retries=args.max_retries,
     )
@@ -267,7 +283,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         if args.country_scan:
             records = run_country_scan(
-                client, args.bbox, args.spacing_km, args.scan_radius_km, args.language
+                client, bbox, args.spacing_km, args.scan_radius_km, args.language
             )
         else:
             if args.location is not None:

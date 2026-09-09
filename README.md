@@ -49,14 +49,23 @@ Scan an entire country (default bounding box is Germany) and de-duplicate:
 python -m bosch_dealers_scraper --country-scan --output dealers_de.csv
 ```
 
-Other markets (Austria, Switzerland, France, UK, ...) are supported via
-`--market` (see `robots.txt`'s sitemap list for every market Bosch
-Professional runs, e.g. `at/de`, `ch/de`, `fr/fr`, `gb/en`):
+`--country` is a shortcut that sets both `--market` and `--bbox` for a known
+country — currently `de` (Germany) and `fr` (France):
+
+```bash
+python -m bosch_dealers_scraper --country-scan --country fr --output dealers_fr.csv
+```
+
+Any other market (Austria, Switzerland, UK, ...) works the same way via
+`--market` + `--bbox` directly (see `robots.txt`'s sitemap list for every
+market Bosch Professional runs, e.g. `at/de`, `ch/de`, `gb/en`):
 
 ```bash
 python -m bosch_dealers_scraper --country-scan --market at/de \
     --bbox 46.3,9.5,49.1,17.2 --output dealers_at.csv
 ```
+
+`--market`/`--bbox` always override `--country`'s preset if both are given.
 
 Run `python -m bosch_dealers_scraper --help` for every option (output
 format, request delay/retries, custom grid spacing, etc.).

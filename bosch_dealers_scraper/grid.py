@@ -18,11 +18,16 @@ KM_PER_DEGREE_LAT = 111.32
 GERMANY_BBOX: Tuple[float, float, float, float] = (47.2, 5.5, 55.1, 15.5)
 # Mainland France plus Corsica.
 FRANCE_BBOX: Tuple[float, float, float, float] = (41.3, -5.2, 51.1, 9.6)
+# Great Britain and Northern Ireland, including the Scottish isles.
+UK_BBOX: Tuple[float, float, float, float] = (49.8, -8.7, 60.9, 1.8)
+POLAND_BBOX: Tuple[float, float, float, float] = (49.0, 14.0, 54.9, 24.2)
 
 # --country presets for the CLI: name -> (market path, default bbox).
 COUNTRY_PRESETS: Dict[str, Tuple[str, Tuple[float, float, float, float]]] = {
     "de": ("de/de", GERMANY_BBOX),
     "fr": ("fr/fr", FRANCE_BBOX),
+    "gb": ("gb/en", UK_BBOX),
+    "pl": ("pl/pl", POLAND_BBOX),
 }
 
 

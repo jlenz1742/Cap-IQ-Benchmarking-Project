@@ -50,7 +50,7 @@ python -m bosch_dealers_scraper --country-scan --output dealers_de.csv
 ```
 
 `--country` is a shortcut that sets both `--market` and `--bbox` for a known
-country — currently `de` (Germany) and `fr` (France):
+country — currently `de` (Germany), `fr` (France), `gb` (UK), and `pl` (Poland):
 
 ```bash
 python -m bosch_dealers_scraper --country-scan --country fr --output dealers_fr.csv

@@ -2,6 +2,7 @@
 
 Usage:
     python -m scrapers.makita.scrape --country de
+    python -m scrapers.makita.scrape --country us
     python -m scrapers.makita.scrape --country de --out output/makita/de/dealers.csv
 """
 
@@ -16,8 +17,13 @@ from pathlib import Path
 
 from .client import DEALER_FIELDS, DealerLocatorClient
 from .countries import COUNTRIES, get_country
+from .us import USDealerLocatorClient
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# "us" uses a bespoke geo-grid scraper (see us.py); everything else goes
+# through the shared dealerlocator-widget client configured in countries.py.
+AVAILABLE_COUNTRIES = sorted(set(COUNTRIES) | {"us"})
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -25,7 +31,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--country",
         default="de",
-        choices=sorted(COUNTRIES),
+        choices=AVAILABLE_COUNTRIES,
         help="Country code to scrape (default: de).",
     )
     parser.add_argument(
@@ -76,14 +82,18 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(message)s",
     )
 
-    country = get_country(args.country)
-    out_path = args.out or REPO_ROOT / "output" / "makita" / country.code / "dealers.csv"
+    out_path = args.out or REPO_ROOT / "output" / "makita" / args.country / "dealers.csv"
 
-    client = DealerLocatorClient(country)
-    dealers = client.fetch_all_dealers()
+    if args.country == "us":
+        country_name = "United States"
+        dealers = USDealerLocatorClient().fetch_all_dealers()
+    else:
+        country = get_country(args.country)
+        country_name = country.name
+        dealers = DealerLocatorClient(country).fetch_all_dealers()
 
     if not dealers:
-        logging.warning("No dealers returned for %s; not writing an empty file.", country.name)
+        logging.warning("No dealers returned for %s; not writing an empty file.", country_name)
         return 1
 
     write_csv(dealers, out_path)

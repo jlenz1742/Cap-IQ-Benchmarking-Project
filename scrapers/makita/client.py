@@ -39,6 +39,8 @@ class Dealer:
     house_number: str | None
     postcode: str
     city: str
+    region: str | None
+    country: str
     phone: str | None
     fax: str | None
     email: str | None
@@ -49,7 +51,7 @@ class Dealer:
     extra_info: str | None
 
     @classmethod
-    def from_raw(cls, raw: dict[str, Any]) -> "Dealer":
+    def from_raw(cls, raw: dict[str, Any], country: str) -> "Dealer":
         def s(key: str) -> str | None:
             value = raw.get(key)
             if value is None:
@@ -85,6 +87,8 @@ class Dealer:
             house_number=s("huisnummer"),
             postcode=s("postcode") or "",
             city=s("plaats") or "",
+            region=None,
+            country=country,
             phone=s("recordset_telefoon"),
             fax=s("recordset_fax"),
             email=s("recordset_email") or s("email"),
@@ -93,6 +97,73 @@ class Dealer:
             longitude=f("lng"),
             geocoded_address=s("recordset_geocode"),
             extra_info=s("recordset_extra_informatie"),
+        )
+
+    @classmethod
+    def from_us_raw(cls, raw: dict[str, Any]) -> "Dealer":
+        """Build a Dealer from a makitatools.com retailer-search record.
+
+        That API (``/api/getretailersbyretailertypewithinmiles``) has a very
+        different, non-negotiable field set (no widget/source id, US-style
+        Address1/Address2/City/State/Zip, boolean dealer-class flags) so it
+        gets its own constructor rather than reusing ``from_raw``.
+        """
+
+        def s(key: str) -> str | None:
+            value = raw.get(key)
+            if value is None:
+                return None
+            value = str(value).strip()
+            return value or None
+
+        def f(key: str) -> float | None:
+            value = raw.get(key)
+            try:
+                return float(value) if value not in (None, "") else None
+            except (TypeError, ValueError):
+                return None
+
+        street = " ".join(part for part in (s("Address1"), s("Address2")) if part)
+
+        dealer_classes = [
+            label
+            for flag, label in (
+                ("ProCenterDealer", "Pro Center"),
+                ("FscDealer", "FSC Dealer"),
+                ("HDRental", "HD Rental"),
+                ("CampaignDealer", "Campaign Dealer"),
+                ("IsJanSan", "Jan San"),
+            )
+            if raw.get(flag) is True
+        ]
+        dealer_type = ", ".join(dealer_classes) or s("ToolType") or "Dealer"
+
+        name = s("Name") or ""
+        address_key = (name.lower(), (s("Address1") or "").lower(), (s("Zip") or "").lower())
+        source_id = "us-" + "|".join(address_key)
+
+        return cls(
+            source_id=source_id,
+            customer_number=None,
+            name=name,
+            company_1=None,
+            company_2=None,
+            company_3=None,
+            dealer_type=dealer_type,
+            street=street,
+            house_number=None,
+            postcode=s("Zip") or "",
+            city=s("City") or "",
+            region=(s("State") or "").upper() or None,
+            country="US",
+            phone=s("Phone") or s("TollFreePhone"),
+            fax=None,
+            email=None,
+            website=s("URL"),
+            latitude=f("Latitude"),
+            longitude=f("Longitude"),
+            geocoded_address=None,
+            extra_info=s("ToolType"),
         )
 
 
@@ -154,4 +225,4 @@ class DealerLocatorClient:
 
         raw_dealers = data.get("dealers") or []
         logger.info("Received %d dealer records for %s", len(raw_dealers), self.country.name)
-        return [Dealer.from_raw(raw) for raw in raw_dealers]
+        return [Dealer.from_raw(raw, country=self.country.countries_for_results) for raw in raw_dealers]

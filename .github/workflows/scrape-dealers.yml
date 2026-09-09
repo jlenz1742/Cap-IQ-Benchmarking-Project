@@ -1,0 +1,66 @@
+name: scrape-dealers
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/milwaukee-dealers-scraper-ulrem0
+    paths:
+      - '.github/workflows/scrape-dealers.yml'
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-jammy
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install playwright npm package
+        timeout-minutes: 3
+        run: npm install playwright@1.56.1
+      - name: Run scraper on shard ${{ matrix.shard }}
+        timeout-minutes: 50
+        run: |
+          ZIP_FILE=data/sweep_zips.csv \
+          SHARD_INDEX=${{ matrix.shard }} \
+          SHARD_COUNT=20 \
+          OUT_FILE=results.jsonl \
+          ERR_FILE=errors.jsonl \
+          node scripts/scrape-dealers.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dealers-shard-${{ matrix.shard }}
+          path: |
+            results.jsonl
+            errors.jsonl
+          if-no-files-found: warn
+
+  merge:
+    needs: scrape
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dealers-shard-*
+          path: shards
+      - name: Merge all shards
+        run: |
+          find shards -name results.jsonl
+          node scripts/merge-results.js milwaukee_dealers.csv shards/*/results.jsonl
+          echo '--- error summary ---'
+          cat shards/*/errors.jsonl 2>/dev/null | wc -l
+      - uses: actions/upload-artifact@v4
+        with:
+          name: milwaukee-dealers-final
+          path: |
+            milwaukee_dealers.csv
+            shards/*/errors.jsonl

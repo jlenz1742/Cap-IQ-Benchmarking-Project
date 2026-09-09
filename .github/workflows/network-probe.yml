@@ -1,5 +1,10 @@
 name: network-probe
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - claude/milwaukee-dealers-scraper-ulrem0
+    paths:
+      - '.github/workflows/network-probe.yml'
 
 jobs:
   probe:

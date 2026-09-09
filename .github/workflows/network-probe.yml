@@ -1,0 +1,36 @@
+name: network-probe
+on: workflow_dispatch
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install playwright
+        run: |
+          npm init -y >/dev/null
+          npm install playwright@1.56.1 >/dev/null
+          npx playwright install --with-deps chromium
+      - name: Probe milwaukeetool.com
+        run: |
+          cat > probe.js << 'EOF'
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36' });
+            try {
+              const resp = await page.goto('https://www.milwaukeetool.com/buy-now', { waitUntil: 'domcontentloaded', timeout: 30000 });
+              console.log('STATUS', resp && resp.status());
+              console.log('TITLE', await page.title());
+              const html = await page.content();
+              console.log('HTML_LENGTH', html.length);
+              console.log('HAS_SCRIPT_TAGS', (html.match(/<script/g) || []).length);
+            } catch (e) {
+              console.log('GOTO_ERROR', e.message);
+            }
+            await browser.close();
+          })();
+          EOF
+          node probe.js

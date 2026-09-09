@@ -1,6 +1,17 @@
 name: DeWalt Store Locator Scraper
 
+# Note: `workflow_dispatch` only becomes callable via the API/UI once this
+# file exists on the repo's default branch, so for now this also runs on
+# push to this branch (matrix over DE + FR) so it's runnable without
+# merging first. Once merged to main, it can be dispatched on demand too.
 on:
+  push:
+    branches:
+      - claude/dewalt-germany-scraper-360xzg
+    paths:
+      - ".github/workflows/dewalt-scraper.yml"
+      - "scrapers/dewalt/**"
+      - "requirements.txt"
   workflow_dispatch:
     inputs:
       country:
@@ -16,6 +27,10 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        country: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.country)) || fromJSON('["DE", "FR"]') }}
+      fail-fast: false
     steps:
       - uses: actions/checkout@v4
 
@@ -25,9 +40,9 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - run: python -m scrapers.dewalt.cli --country ${{ inputs.country }} -v
+      - run: python -m scrapers.dewalt.cli --country ${{ matrix.country }} -v
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dewalt-${{ inputs.country }}
+          name: dewalt-${{ matrix.country }}
           path: output/

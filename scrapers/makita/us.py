@@ -63,6 +63,26 @@ def _miles_per_lon_degree(lat: float) -> float:
     return 69.172 * math.cos(math.radians(lat))
 
 
+def _linspace_inclusive(start: float, end: float, step: float) -> list[float]:
+    """Evenly spaced points from ``start`` to ``end`` inclusive, with actual
+    spacing <= ``step``.
+
+    A naive ``start, start+step, start+2*step, ...`` walk can stop one
+    short of ``end`` (whenever the span isn't an exact multiple of
+    ``step``), leaving a gap up to a full ``step`` wide right at the
+    boundary uncovered. Fixing the point count and *then* spacing points
+    evenly across the exact span guarantees both endpoints are hit and no
+    edge gap exists.
+    """
+    span = end - start
+    if span <= 0:
+        return [start]
+    n = max(1, math.ceil(span / step)) + 1
+    if n == 1:
+        return [start]
+    return [start + i * span / (n - 1) for i in range(n)]
+
+
 def build_search_grid(
     regions: Iterable[BoundingBox] = US_REGIONS, spacing_miles: float = 250.0
 ) -> list[tuple[float, float]]:
@@ -71,28 +91,23 @@ def build_search_grid(
     For a square grid, the point farthest from its four nearest grid
     corners (a cell's center) is ``spacing / sqrt(2)`` away. Keeping
     ``spacing_miles`` comfortably under ``US_MAX_RADIUS_MILES * sqrt(2)``
-    (~283 mi) guarantees every point in a region lies within
-    ``US_MAX_RADIUS_MILES`` of some grid center; rows are hex-offset for a
-    little extra margin at the same spacing.
+    (~283 mi) guarantees every interior point in a region lies within
+    ``US_MAX_RADIUS_MILES`` of some grid center. Rows and columns are laid
+    out with ``_linspace_inclusive`` so the box's own edges are always
+    exactly covered too, not just its interior.
     """
     points: list[tuple[float, float]] = []
     seen: set[tuple[float, float]] = set()
 
     for box in regions:
-        lat = box.lat_min
-        row = 0
-        while lat <= box.lat_max:
-            lon_spacing_deg = spacing_miles / _miles_per_lon_degree(lat)
-            offset = lon_spacing_deg / 2 if row % 2 else 0.0
-            lon = box.lon_min + offset
-            while lon <= box.lon_max:
+        lat_step = spacing_miles / MILES_PER_LAT_DEGREE
+        for lat in _linspace_inclusive(box.lat_min, box.lat_max, lat_step):
+            lon_step = spacing_miles / _miles_per_lon_degree(lat)
+            for lon in _linspace_inclusive(box.lon_min, box.lon_max, lon_step):
                 point = (round(lat, 4), round(lon, 4))
                 if point not in seen:
                     seen.add(point)
                     points.append(point)
-                lon += lon_spacing_deg
-            lat += spacing_miles / MILES_PER_LAT_DEGREE
-            row += 1
 
     return points
 

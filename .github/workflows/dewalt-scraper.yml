@@ -1,0 +1,33 @@
+name: DeWalt Store Locator Scraper
+
+on:
+  workflow_dispatch:
+    inputs:
+      country:
+        description: "Country code to scrape (see scrapers/dewalt/countries.py)"
+        required: true
+        default: "DE"
+        type: choice
+        options:
+          - DE
+          - US
+          - FR
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - run: python -m scrapers.dewalt.cli --country ${{ inputs.country }} -v
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dewalt-${{ inputs.country }}
+          path: output/

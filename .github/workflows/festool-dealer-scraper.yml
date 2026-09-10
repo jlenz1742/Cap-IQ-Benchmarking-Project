@@ -1,0 +1,45 @@
+name: Festool US Dealer Scraper
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - claude/festool-dealer-scraper-9ofzjw
+    paths:
+      - ".github/workflows/festool-dealer-scraper.yml"
+      - "scrapers/festool_dealer_scraper.py"
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run scraper
+        working-directory: scrapers
+        run: python3 festool_dealer_scraper.py -o festool_dealers_us.csv --json festool_dealers_us.json
+
+      - name: Print CSV to job log
+        working-directory: scrapers
+        run: |
+          echo "----- BEGIN festool_dealers_us.csv -----"
+          cat festool_dealers_us.csv
+          echo "----- END festool_dealers_us.csv -----"
+
+      - name: Upload CSV/JSON artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: festool-dealers-us
+          path: |
+            scrapers/festool_dealers_us.csv
+            scrapers/festool_dealers_us.json
+          retention-days: 30

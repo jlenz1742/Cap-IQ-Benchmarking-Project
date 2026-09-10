@@ -1,0 +1,728 @@
+<title>Dealer Channel Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=Source+Serif+4:ital,opsz,wght@1,8..60,500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --page:        #efece3;
+    --surface:     #fbfaf6;
+    --surface-2:   #f4f1e9;
+    --ink:         #18140f;
+    --ink-2:       #5c5548;
+    --muted:       #948b7a;
+    --hairline:    rgba(24,20,15,0.12);
+    --hairline-2:  rgba(24,20,15,0.20);
+    --accent:      #a6631a;
+    --accent-ink:  #7c4a13;
+
+    --s1: #2a78d6; /* Sherwin-Williams */
+    --s2: #eb6834; /* Benjamin Moore */
+    --s3: #1baf7a; /* Woodcraft */
+    --s4: #eda100; /* Rockler */
+    --s-regional: #6da7ec; /* ranks 5-9, shared "named regional chain" tone */
+    --s-rest:     #c3c2b7; /* long tail */
+
+    --tile-good: #0ca30c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page:        #100f0d;
+      --surface:     #1c1a16;
+      --surface-2:   #201d18;
+      --ink:         #f5f1e8;
+      --ink-2:       #c3bcab;
+      --muted:       #948b7a;
+      --hairline:    rgba(245,241,232,0.13);
+      --hairline-2:  rgba(245,241,232,0.22);
+      --accent:      #e2a052;
+      --accent-ink:  #f0bd7c;
+
+      --s1: #3987e5;
+      --s2: #d95926;
+      --s3: #199e70;
+      --s4: #c98500;
+      --s-regional: #4d78ad;
+      --s-rest:     #45443d;
+
+      --tile-good: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:        #100f0d;
+    --surface:     #1c1a16;
+    --surface-2:   #201d18;
+    --ink:         #f5f1e8;
+    --ink-2:       #c3bcab;
+    --muted:       #948b7a;
+    --hairline:    rgba(245,241,232,0.13);
+    --hairline-2:  rgba(245,241,232,0.22);
+    --accent:      #e2a052;
+    --accent-ink:  #f0bd7c;
+
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --s-regional: #4d78ad;
+    --s-rest:     #45443d;
+
+    --tile-good: #0ca30c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+    font-size: 16px;
+    line-height: 1.6;
+    padding-block: 48px 80px;
+  }
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding-inline: 20px;
+  }
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  .display {
+    font-family: "Archivo", "Arial Narrow", sans-serif;
+    letter-spacing: -0.01em;
+  }
+  h1, h2, h3 { text-wrap: balance; }
+
+  /* ---------- Masthead ---------- */
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    margin: 0 0 14px;
+  }
+  h1.title {
+    font-size: clamp(2rem, 5vw, 2.85rem);
+    font-weight: 900;
+    line-height: 1.04;
+    margin: 0 0 18px;
+  }
+  p.dek {
+    font-size: 1.11rem;
+    color: var(--ink-2);
+    max-width: 62ch;
+    margin: 0 0 22px;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: var(--muted);
+    padding-top: 18px;
+    border-top: 1px solid var(--hairline);
+    margin-bottom: 40px;
+  }
+  .meta-row span { white-space: nowrap; }
+
+  /* ---------- Stat tiles ---------- */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--hairline);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 48px;
+  }
+  .stat {
+    background: var(--surface);
+    padding: 20px 18px;
+  }
+  .stat .num {
+    font-family: "Archivo", sans-serif;
+    font-weight: 800;
+    font-size: 1.9rem;
+    line-height: 1.1;
+    font-variant-numeric: proportional-nums;
+  }
+  .stat .label {
+    margin-top: 6px;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    font-family: "Source Serif 4", serif;
+    line-height: 1.35;
+  }
+  @media (max-width: 620px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ---------- Section headers ---------- */
+  h2.section {
+    font-family: "Archivo", sans-serif;
+    font-weight: 800;
+    font-size: 1.5rem;
+    margin: 0 0 6px;
+  }
+  p.section-sub {
+    color: var(--ink-2);
+    font-size: 0.98rem;
+    max-width: 60ch;
+    margin: 0 0 24px;
+  }
+  section { margin-bottom: 56px; }
+
+  /* ---------- Bar chart card ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    padding: 28px 24px 20px;
+  }
+  .chart-wrap { overflow-x: auto; }
+  .chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 640px;
+    height: 300px;
+    position: relative;
+    padding-left: 46px;
+    margin-top: 8px;
+  }
+  .gridlines {
+    position: absolute;
+    left: 46px; right: 0; top: 0; bottom: 0;
+  }
+  .gridlines .line {
+    position: absolute; left: 0; right: 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .gridlines .tick {
+    position: absolute; left: -46px; width: 40px;
+    text-align: right;
+    transform: translateY(-50%);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    color: var(--muted);
+  }
+  .bar-col {
+    flex: 1 1 0;
+    min-width: 52px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    position: relative;
+    cursor: default;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+  }
+  .bar-val {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-2);
+    margin-bottom: 5px;
+    white-space: nowrap;
+  }
+  .bar {
+    width: 24px;
+    border-radius: 4px 4px 0 0;
+    transition: opacity 0.12s ease;
+  }
+  .bar-col:hover .bar,
+  .bar-col:focus-visible .bar { opacity: 0.78; }
+  .bar-col:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+  .tooltip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    width: 208px;
+    background: var(--ink);
+    color: var(--surface);
+    font-family: "Source Serif 4", serif;
+    font-size: 12.5px;
+    line-height: 1.45;
+    padding: 10px 12px;
+    border-radius: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    z-index: 5;
+    text-align: left;
+  }
+  .tooltip b { font-family: "Archivo", sans-serif; font-weight: 700; }
+  .tooltip .tt-mono { font-family: "IBM Plex Mono", monospace; opacity: 0.75; font-size: 11px; }
+  .bar-col:hover .tooltip,
+  .bar-col:focus-visible .tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .axis-labels {
+    display: flex;
+    gap: 2px;
+    padding-left: 46px;
+    min-width: 640px;
+    margin-top: 10px;
+  }
+  .axis-label {
+    flex: 1 1 0;
+    min-width: 52px;
+    text-align: center;
+    padding: 0 2px;
+  }
+  .axis-label .name {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.25;
+  }
+  .axis-label .sub {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  .chart-note {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--hairline);
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .chart-note strong { color: var(--ink-2); }
+
+  /* ---------- Category mix ---------- */
+  .catmix { display: flex; flex-direction: column; gap: 14px; }
+  .catrow { display: flex; align-items: center; gap: 14px; }
+  .catrow .cname {
+    width: 190px;
+    flex: 0 0 190px;
+    font-size: 13.5px;
+    color: var(--ink);
+  }
+  .cattrack {
+    flex: 1 1 auto;
+    height: 10px;
+    background: var(--surface-2);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  .catfill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .catrow .cpct {
+    width: 52px;
+    flex: 0 0 52px;
+    text-align: right;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- Prose ---------- */
+  .prose p { margin: 0 0 16px; max-width: 66ch; }
+  .prose h3 {
+    font-family: "Archivo", sans-serif;
+    font-weight: 700;
+    font-size: 1.12rem;
+    margin: 30px 0 10px;
+  }
+  .prose ol { margin: 0 0 16px; padding-left: 22px; max-width: 66ch; }
+  .prose li { margin-bottom: 10px; }
+  .prose li::marker {
+    font-family: "IBM Plex Mono", monospace;
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+
+  /* ---------- Tiering table ---------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--hairline); border-radius: 12px; }
+  table.tiers {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 760px;
+    background: var(--surface);
+    font-size: 13.5px;
+  }
+  table.tiers th {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    font-weight: 500;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--hairline-2);
+    background: var(--surface-2);
+  }
+  table.tiers td {
+    padding: 14px;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: top;
+    color: var(--ink-2);
+  }
+  table.tiers tr:last-child td { border-bottom: none; }
+  table.tiers td.tier-name {
+    color: var(--ink);
+    font-weight: 600;
+    font-family: "Archivo", sans-serif;
+    white-space: nowrap;
+  }
+  table.tiers td.num {
+    font-family: "IBM Plex Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .swatch {
+    display: inline-block;
+    width: 9px; height: 9px;
+    border-radius: 2px;
+    margin-right: 7px;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+  }
+
+  /* ---------- Callout ---------- */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--surface-2);
+    border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+    margin: 24px 0;
+    font-size: 14.5px;
+    color: var(--ink-2);
+  }
+  .callout strong { color: var(--ink); }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 20px;
+    border-top: 1px solid var(--hairline);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">Channel analysis · US dealer network</p>
+  <h1 class="title display">Dealer Channel Map</h1>
+  <p class="dek">Festool lists 1,819 dealer doors across the United States. Clustering
+    them by parent chain shows a network built on one giant reach partner, a thin
+    layer of true specialists, and a long tail of one-off independents — a shape
+    that should be running three different sales plays, not one.</p>
+  <div class="meta-row">
+    <span>SOURCE&nbsp; festool.locally.com store locator</span>
+    <span>SCRAPED&nbsp; via GitHub Actions, Sept 2026</span>
+    <span>1,819 DOORS</span>
+    <span>50 STATES + DC</span>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="num display">1,819</div>
+      <div class="label">Dealer doors nationwide</div>
+    </div>
+    <div class="stat">
+      <div class="num display">1,000</div>
+      <div class="label">Held by the top&nbsp;9 named chains — 55.0% of all doors</div>
+    </div>
+    <div class="stat">
+      <div class="num display" style="color:var(--s1)">39.0%</div>
+      <div class="label">Held by Sherwin&#8209;Williams alone</div>
+    </div>
+    <div class="stat">
+      <div class="num display">40.5%</div>
+      <div class="label">Held by ~620 single-location independents</div>
+    </div>
+  </div>
+
+  <section>
+    <h2 class="section display">Top 9 chains, and everyone else</h2>
+    <p class="section-sub">Dealer doors clustered by parent name — ranked left to
+      right, with every other named business folded into one bar.</p>
+
+    <div class="card">
+      <div class="chart-wrap">
+        <div class="chart" id="chart">
+          <div class="gridlines" id="gridlines"></div>
+          <!-- bars injected by script -->
+        </div>
+      </div>
+      <div class="axis-labels" id="axisLabels"></div>
+
+      <div class="chart-note">
+        <strong>How this is clustered —</strong> exact-name matches, plus eight
+        known multi-location brands matched by substring (Sherwin&#8209;Williams,
+        Benjamin Moore, Woodcraft, Rockler, Ace Hardware, True Value, Do it Best,
+        Ring's End) to absorb naming variants like “Sherwin&#8209;Williams
+        Commercial Paint Store” or “Ring's End, Inc.” Cross-checking against
+        Locally.com's internal account IDs confirms the shape holds:
+        Sherwin&#8209;Williams' 709 doors sit on 3 accounts and Rockler's 45 on
+        one — true single-owner chains — while Benjamin Moore's 104 doors sit on
+        66 separate accounts and Woodcraft's 66 doors on 66: a brand-affiliate
+        network and a franchise banner, not corporate chains. Below the top 9,
+        name-matching gets noisier — read the long tail's shape as directional.
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section display">What kind of store is selling Festool?</h2>
+    <p class="section-sub">Every dealer name classified by retail category, independent
+      of ownership. 56.7% of doors are paint retailers.</p>
+    <div class="card">
+      <div class="catmix" id="catmix"></div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2 class="section display">Sales channel strategy</h2>
+    <p>A flat “1,819 dealers” count hides more than it tells you. The network
+      is bimodal: <strong style="color:var(--ink)">one</strong> corporate paint
+      chain supplies four doors in ten, a handful of true product specialists
+      supply well under one in ten, and roughly 620 independently owned shops
+      — most stocking Festool at a single counter — supply four more in ten.
+      Treating all of them as one channel means either over-servicing the long
+      tail or under-investing in the tier that actually sells the system.</p>
+
+    <h3>The network runs at two speeds</h3>
+    <p>Festool's own site badges dealers as “Full Line,” “Paint and Drywall,”
+      or “Limited Selection.” The cluster data explains why: Sherwin&#8209;Williams'
+      709 corporate-owned stores are almost certainly the reach layer — sanders,
+      dust extractors, and abrasives sold alongside a paint or drywall job, not
+      a considered system purchase. The 123 doors at Woodcraft, Rockler, and
+      Acme Tools are the opposite: staffed by woodworkers, built around demo
+      events, and the only channel equipped to sell the Domino, the track saw,
+      and the full dust-extraction line as a system. Both matter; neither should
+      be run on the other's playbook.</p>
+
+    <h3>Five tiers, five different jobs</h3>
+    <div class="table-wrap">
+      <table class="tiers">
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>Chain(s)</th>
+            <th>Doors</th>
+            <th>Share</th>
+            <th>Ownership</th>
+            <th>Recommended motion</th>
+          </tr>
+        </thead>
+        <tbody id="tierBody"></tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <strong>Read:</strong> the 123-door Specialty Flagship tier and the
+      146-door Regional Captain tier together are smaller than Sherwin&#8209;Williams
+      alone — but they are the only two tiers built to sell Festool the way
+      Festool sells itself. Coverage math (doors served) and revenue math
+      (dollars per door) point at completely different tiers.
+    </div>
+
+    <h3>Where the map has gaps</h3>
+    <p>Geographically, the top five states — California, New York,
+      Massachusetts, Pennsylvania, and Illinois — hold 675 doors, 37.1% of the
+      network, tracking dense, high-income renovation markets. Texas, with a
+      housing-starts volume that rivals any state in the country, carries just
+      61 doors; Oklahoma, Kansas, Nebraska, and Arkansas each carry fewer than
+      ten. That gap reads less like low demand and more like an under-recruited
+      Sun Belt channel.</p>
+    <p>By category, the mismatch is sharper: 56.7% of doors are paint stores
+      against roughly 17% that are true woodworking or tool specialists. A
+      brand built around professional woodworkers and finish carpenters is,
+      by door count, mostly retailed through paint counters.</p>
+
+    <h3>Three moves, in order</h3>
+    <ol>
+      <li><strong>Split the KPI by tier</strong> instead of reporting one
+        blended dealer count — doors served for the Anchor tier, revenue per
+        door for Specialty Flagship, stocking depth for Regional Captains.
+        A single number currently hides which tier is actually underperforming.</li>
+      <li><strong>Fund the Flagship tier disproportionately to its 6.8% share.</strong>
+        It is the only channel selling the full system, and it is cheap to
+        fund at 123 doors — co-op demo dollars, expanded SKU assortment, and
+        staff spiffs go a long way at this scale.</li>
+      <li><strong>Run a state-level whitespace pass — Texas, Oklahoma, Kansas,
+        Nebraska first</strong> — to promote the strongest long-tail
+        independents into named Regional Captains with a standard starter kit
+        and stocking minimum, rather than recruiting cold or leaving the gap
+        unaddressed.</li>
+    </ol>
+
+    <h3>A caveat on the data</h3>
+    <p>This clustering is name-based — a proxy for ownership, not the thing
+      itself. It is strong at the top (the account-ID cross-check above
+      confirms Sherwin&#8209;Williams and Rockler as single chains) and
+      progressively noisier down the tail, where two independents could share
+      an owner without sharing a name, or vice versa. Treat the top 4 tiers as
+      reliable and the long tail's size as directional before this becomes a
+      resourcing decision.</p>
+  </section>
+
+  <footer>
+    DATA — festool.locally.com/stores/conversion_data, scraped via a GitHub
+    Actions workflow, September 2026 · 1,819 US dealer doors, 796 distinct
+    listed names · Analysis and clustering by Claude Code · This is a
+    third-party analysis, not a Festool publication.
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var top9 = [
+    { name: "Sherwin-Williams",  short: "Sherwin-\nWilliams", count: 709, pct: "39.0%", color: "var(--s1)",
+      note: "Single corporate chain — 3 Locally.com accounts, 695 of the 709 doors under one. The reach layer: abrasives, dust extraction, and sanders alongside a paint or drywall job." },
+    { name: "Benjamin Moore Dealer Network", short: "Benjamin\nMoore*", count: 104, pct: "5.7%", color: "var(--s2)",
+      note: "Not a chain — 104 doors sit on 66 separate Locally.com accounts. Independently owned local paint shops that carry the Benjamin Moore brand in their name." },
+    { name: "Woodcraft", short: "Woodcraft", count: 66, pct: "3.6%", color: "var(--s3)",
+      note: "Franchise banner — all 66 doors sit on 66 separate accounts (one owner per store), unified only by the brand. Core woodworking specialist." },
+    { name: "Rockler Woodworking and Hardware", short: "Rockler", count: 45, pct: "2.5%", color: "var(--s4)",
+      note: "Single corporate chain — all 45 doors on one Locally.com account. Core woodworking specialist, staffed and demo-driven." },
+    { name: "Ring's End", short: "Ring's End", count: 22, pct: "1.2%", color: "var(--s-regional)",
+      note: "Single-owner regional chain — CT/NY/RI building supply and paint, including the Johnson Paint banner it operates under the same ownership." },
+    { name: "Miller Paint", short: "Miller\nPaint", count: 17, pct: "0.9%", color: "var(--s-regional)",
+      note: "Single-owner regional chain — Pacific Northwest paint manufacturer and retailer." },
+    { name: "Home Decor Group", short: "Home Decor\nGroup", count: 13, pct: "0.7%", color: "var(--s-regional)",
+      note: "Regional paint dealer group — 16 doors sit on 3 Locally.com accounts, a small multi-entity group rather than one owner." },
+    { name: "Ace Hardware", short: "Ace\nHardware", count: 12, pct: "0.7%", color: "var(--s-regional)",
+      note: "Member-owned cooperative — 12 doors sit on 10 separate accounts, i.e. independently owned Ace franchisees, not one company." },
+    { name: "Acme Tools", short: "Acme\nTools", count: 12, pct: "0.7%", color: "var(--s-regional)",
+      note: "Single-owner regional chain — Upper Midwest tool retailer, all 12 doors on one account." },
+  ];
+  var rest = { name: "All other dealers", short: "All other\ndealers", count: 819, pct: "45.0%", color: "var(--s-rest)",
+    note: "819 doors across roughly 620 distinct business names — mostly single-location independent hardware, paint, and lumber dealers, plus ~90 small regional chains of 2–10 doors each." };
+
+  var bars = top9.concat([rest]);
+  var maxVal = 900; // scale headroom above the 819 max (All other dealers)
+  var chart = document.getElementById("chart");
+  var axis = document.getElementById("axisLabels");
+  var gridlines = document.getElementById("gridlines");
+
+  [0, 200, 400, 600, 800].forEach(function (v) {
+    var pct = (v / maxVal) * 100;
+    var line = document.createElement("div");
+    line.className = "line";
+    line.style.bottom = pct + "%";
+    gridlines.appendChild(line);
+    var tick = document.createElement("div");
+    tick.className = "tick";
+    tick.style.bottom = pct + "%";
+    tick.textContent = v.toLocaleString();
+    gridlines.appendChild(tick);
+  });
+
+  bars.forEach(function (d) {
+    var col = document.createElement("button");
+    col.className = "bar-col";
+    col.type = "button";
+
+    var val = document.createElement("div");
+    val.className = "bar-val mono";
+    val.textContent = d.count.toLocaleString();
+    col.appendChild(val);
+
+    var bar = document.createElement("div");
+    bar.className = "bar";
+    bar.style.height = ((d.count / maxVal) * 100) + "%";
+    bar.style.background = d.color;
+    col.appendChild(bar);
+
+    var tip = document.createElement("div");
+    tip.className = "tooltip";
+    tip.innerHTML = "<b>" + d.name + "</b><br>" +
+      "<span class='tt-mono'>" + d.count.toLocaleString() + " doors · " + d.pct + " of network</span><br><br>" +
+      d.note;
+    col.appendChild(tip);
+
+    chart.appendChild(col);
+
+    var lab = document.createElement("div");
+    lab.className = "axis-label";
+    var nm = document.createElement("div");
+    nm.className = "name";
+    nm.textContent = d.short.replace(/\n/g, " ");
+    var sub = document.createElement("div");
+    sub.className = "sub mono";
+    sub.textContent = d.pct;
+    lab.appendChild(nm);
+    lab.appendChild(sub);
+    axis.appendChild(lab);
+  });
+
+  // Category mix
+  var cats = [
+    { name: "Paint store", pct: 56.7 },
+    { name: "Other / unclassified", pct: 15.9 },
+    { name: "Woodworking specialty", pct: 10.6 },
+    { name: "Lumber & building materials", pct: 9.0 },
+    { name: "Tool specialist", pct: 4.0 },
+    { name: "Hardware store", pct: 3.8 },
+  ];
+  var catmix = document.getElementById("catmix");
+  cats.forEach(function (c) {
+    var row = document.createElement("div");
+    row.className = "catrow";
+    row.innerHTML =
+      "<div class='cname'>" + c.name + "</div>" +
+      "<div class='cattrack'><div class='catfill' style='width:" + c.pct + "%'></div></div>" +
+      "<div class='cpct mono'>" + c.pct.toFixed(1) + "%</div>";
+    catmix.appendChild(row);
+  });
+
+  // Tiering table
+  var tiers = [
+    { name: "National Anchor", chain: "Sherwin-Williams", doors: "709", share: "39.0%", color: "var(--s1)",
+      owner: "Single corporate chain (3 accounts)",
+      motion: "National account team. Protect as the reach / consumables channel — abrasives, filter bags, sanders. Don't let it expand into system tools; that's the Flagship tier's job." },
+    { name: "Independent Affiliate Network", chain: "“Benjamin Moore” branded shops", doors: "104", share: "5.7%", color: "var(--s2)",
+      owner: "66 separately owned businesses",
+      motion: "Manage as 66 independent relationships wearing one brand — a shared starter kit and co-op fund, not a single national deal." },
+    { name: "Specialty Flagship", chain: "Woodcraft, Rockler, Acme Tools", doors: "123", share: "6.8%", color: "var(--s3)",
+      owner: "Franchise banner + 2 single-owner chains",
+      motion: "Fund disproportionately to its size: demo-day co-op dollars, deeper SKU assortment, staff spiffs. The only tier that sells the full system." },
+    { name: "Regional Captains", chain: "15 chains — Ring's End, Ganahl Lumber, Miller Paint, Aboff's, Hammond Lumber & 10 more", doors: "146", share: "8.0%", color: "var(--s-regional)",
+      owner: "Single-owner regional chains, 6–22 doors each",
+      motion: "Named regional key accounts with a direct rep and stocking minimums — the natural upgrade path for the strongest long-tail independents." },
+    { name: "Long-tail Independents", chain: "~620 distinct businesses", doors: "737", share: "40.5%", color: "var(--s-rest)",
+      owner: "Mostly single-location",
+      motion: "Distributor-fulfilled or online-order path rather than direct-rep coverage. Mine for Regional Captain promotion in under-covered states." },
+  ];
+  var tbody = document.getElementById("tierBody");
+  tiers.forEach(function (t) {
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      "<td class='tier-name'><span class='swatch' style='background:" + t.color + "'></span>" + t.name + "</td>" +
+      "<td>" + t.chain + "</td>" +
+      "<td class='num'>" + t.doors + "</td>" +
+      "<td class='num'>" + t.share + "</td>" +
+      "<td>" + t.owner + "</td>" +
+      "<td>" + t.motion + "</td>";
+    tbody.appendChild(tr);
+  });
+})();
+</script>

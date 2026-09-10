@@ -2,6 +2,12 @@ name: Festool US Dealer Scraper
 
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - claude/festool-dealer-scraper-9ofzjw
+    paths:
+      - ".github/workflows/festool-dealer-scraper.yml"
+      - "scrapers/festool_dealer_scraper.py"
 
 jobs:
   scrape:
